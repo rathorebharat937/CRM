@@ -858,3 +858,19 @@ class ActivityLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="activities")
+
+
+class Notification(Base):
+    """In-app notifications — global (user_id=NULL) or user-specific."""
+
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True)
+    title = Column(String(200), nullable=False)
+    message = Column(Text, nullable=False)
+    type = Column(String(20), nullable=False, default="INFO")
+    is_read = Column(Boolean, nullable=False, default=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    user = relationship("User")

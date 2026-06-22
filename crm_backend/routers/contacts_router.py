@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
 from auth_utils import get_client_ip, get_db, require_permission
+from services.notification_service import create_notification
 from config import STAFF_ROLES
 from models import Company, Contact, ContactActivity, ContactNote, User
 from schemas import (
@@ -269,6 +270,8 @@ def create_contact(
         details=f"Created contact {contact.name} ({contact.contact_type})",
         ip_address=get_client_ip(request),
     )
+
+    create_notification(db, "Contact Created", f"A new contact {contact.name} was created.", "SUCCESS")
 
     return _contact_to_response(contact)
 

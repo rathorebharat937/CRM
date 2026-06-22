@@ -13,6 +13,7 @@ from auth_utils import (
 )
 from permissions_data import ROLE_PERMISSIONS
 from config import STAFF_ROLES
+from services.notification_service import create_notification
 from models import ActivityLog, Company, Permission, RolePermission, User
 from schemas import (
     ActivityLogListResponse,
@@ -109,6 +110,8 @@ def create_staff_user(
         details=f"Created staff user {user.email} ({user.role})",
         ip_address=get_client_ip(request),
     )
+
+    create_notification(db, "User Created", "A new employee account was created.", "SUCCESS")
 
     return user
 

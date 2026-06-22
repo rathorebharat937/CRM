@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from activity import log_activity
 from auth_utils import get_client_ip, get_db, require_permission
+from services.notification_service import create_notification
 from models import Company, Product
 from models import User
 from schemas import ProductCreateRequest, ProductListResponse, ProductResponse, ProductUpdateRequest
@@ -181,6 +182,8 @@ def create_product(
         details=f"Created product {product.name}",
         ip_address=get_client_ip(request),
     )
+
+    create_notification(db, "Product Created", f"A new service {product.name} was added.", "SUCCESS")
 
     return _product_response(product)
 
