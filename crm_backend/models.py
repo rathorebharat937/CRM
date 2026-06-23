@@ -1492,24 +1492,3 @@ class ActivityLog(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     user = relationship("User", back_populates="activities")
-
-
-class UploadedFile(Base):
-    __tablename__ = "uploaded_files"
-
-    id = Column(Integer, primary_key=True)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
-    original_filename = Column(String(255), nullable=False)
-    stored_filename = Column(String(255), unique=True, nullable=False, index=True)
-    file_path = Column(String(500), nullable=False)
-    file_type = Column(String(100), nullable=False)
-    file_size = Column(Integer, nullable=False)
-    uploaded_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    related_module = Column(String(50), nullable=True, index=True)
-    related_record_id = Column(Integer, nullable=True, index=True)
-    category = Column(String(50), nullable=True, index=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    company = relationship("Company")
-    uploaded_by = relationship("User")
-

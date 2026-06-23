@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 
 import { API_URL, apiFetch, clearSession, getAuthHeaders } from "../utils/api";
 import { getPermissions, hasPermission, setPermissions } from "../utils/permissions";
+import NotificationBell from "./NotificationBell";
 
 function isNavActive(pathname, to) {
   switch (to) {
@@ -275,6 +276,7 @@ function DashboardLayout({ title, roleLabel, children }) {
               Email Templates
             </Link>
           </nav>
+          <NotificationBell />
           <button
             type="button"
             className="crm-btn crm-btn-outline crm-btn-sm crm-nav-logout"

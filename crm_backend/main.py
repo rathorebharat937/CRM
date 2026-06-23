@@ -37,7 +37,6 @@ from routers.settings_router import router as settings_router
 from routers.numbering_config_router import router as numbering_config_router
 from routers.system_config_router import router as system_config_router
 from routers.email_templates_router import router as email_templates_router
-from routers.files_router import router as files_router
 
 app = FastAPI(title="CRM API")
 
@@ -86,4 +85,3 @@ app.include_router(settings_router)
 app.include_router(numbering_config_router)
 app.include_router(system_config_router)
 app.include_router(email_templates_router)
-app.include_router(files_router)
