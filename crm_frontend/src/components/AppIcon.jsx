@@ -200,6 +200,12 @@ const ICONS = {
     <path d="M30 10h6v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
   </>
   ),
+  user: (
+  <>
+    <circle cx="22" cy="15" r="6" fill="currentColor" />
+    <path d="M12 32c0-5 4.5-9 10-9s10 4 10 9" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" />
+  </>
+  ),
   company: (
   <>
     <rect x="12" y="14" width="20" height="18" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="2" />

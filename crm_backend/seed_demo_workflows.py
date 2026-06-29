@@ -49,6 +49,7 @@ def seed_demo_workflows(activate: bool = True) -> None:
                 created_by_id=admin.id if admin else None,
             )
             db.add(wf)
+            db.flush()
             created += 1
         db.commit()
         print(f"Workflow Builder enabled. Created {created} template workflow(s).")

@@ -584,6 +584,13 @@ export const LANDING_PORTALS = [
     color: "#06b6d4",
     icon: "reports",
   },
+  {
+    title: "User Portal",
+    description: "Portal Sign In & Account Access",
+    path: "/user-login",
+    color: "#4f46e5",
+    icon: "user",
+  },
 ];
 
 export function appVisible(app, hasPermission) {
