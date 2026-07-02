@@ -59,6 +59,9 @@ from routers.subscriptions_router import router as subscriptions_router
 from routers.rental_router import router as rental_router
 from routers.ai_reports_router import router as ai_reports_router
 from routers.workflow_router import router as workflow_router
+from routers.marketing_router import router as marketing_router
+from routers.ai_assistant_router import router as ai_assistant_router
+from routers.marketplace_router import router as marketplace_router
 
 app = FastAPI(title="CRM API")
 
@@ -67,7 +70,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
     ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1|192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3})(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -129,3 +135,6 @@ app.include_router(subscriptions_router)
 app.include_router(rental_router)
 app.include_router(ai_reports_router)
 app.include_router(workflow_router)
+app.include_router(marketing_router)
+app.include_router(ai_assistant_router)
+app.include_router(marketplace_router)

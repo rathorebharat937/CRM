@@ -111,6 +111,15 @@ class Company(Base):
     workflow_settings = relationship("WorkflowSettings", back_populates="company", uselist=False)
     workflows = relationship("Workflow", back_populates="company")
     workflow_runs = relationship("WorkflowRun", back_populates="company")
+    marketing_settings = relationship("MarketingSettings", back_populates="company", uselist=False)
+    marketing_campaigns = relationship("MarketingCampaign", back_populates="company")
+    marketing_enrollments = relationship("MarketingEnrollment", back_populates="company")
+    ai_assistant_settings = relationship("AiAssistantSettings", back_populates="company", uselist=False)
+    ai_assistant_sessions = relationship("AiAssistantSession", back_populates="company")
+    marketplace_settings = relationship("MarketplaceSettings", back_populates="company", uselist=False)
+    marketplace_integrations = relationship("MarketplaceIntegration", back_populates="company")
+    marketplace_api_keys = relationship("MarketplaceApiKey", back_populates="company")
+    marketplace_webhooks = relationship("MarketplaceWebhook", back_populates="company")
 
 
 class SystemSetting(Base):
@@ -1928,7 +1937,7 @@ class StoreSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True, index=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     store_name = Column(String(120), nullable=True)
     currency = Column(String(3), nullable=False, default="INR")
     guest_checkout_allowed = Column(Boolean, nullable=False, default=True)
@@ -2113,7 +2122,7 @@ class PosSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True, index=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     default_register_id = Column(Integer, ForeignKey("pos_registers.id"), nullable=True)
     bill_number_prefix = Column(String(10), nullable=False, default="POS")
     auto_create_invoice = Column(Boolean, nullable=False, default=True)
@@ -2306,7 +2315,7 @@ class ManufacturingSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     work_order_prefix = Column(String(10), nullable=False, default="WO")
     auto_reserve_materials_on_release = Column(Boolean, nullable=False, default=False)
     require_qc_before_receipt = Column(Boolean, nullable=False, default=True)
@@ -2509,7 +2518,7 @@ class QualitySettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     inspection_number_prefix = Column(String(10), nullable=False, default="QC")
     capa_number_prefix = Column(String(10), nullable=False, default="CAPA")
     default_incoming_required = Column(Boolean, nullable=False, default=False)
@@ -2630,7 +2639,7 @@ class MaintenanceSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     work_order_prefix = Column(String(10), nullable=False, default="MWO")
     asset_code_prefix = Column(String(10), nullable=False, default="AST")
     default_pm_interval_days = Column(Integer, nullable=False, default=90)
@@ -2753,7 +2762,7 @@ class FieldServiceSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     order_prefix = Column(String(10), nullable=False, default="FSO")
     default_sla_hours = Column(Integer, nullable=False, default=48)
     auto_deduct_parts = Column(Boolean, nullable=False, default=True)
@@ -2831,7 +2840,7 @@ class SubscriptionSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     subscription_prefix = Column(String(10), nullable=False, default="SUB")
     default_reminder_days = Column(JSON, nullable=False, default=list)
     auto_invoice_mode = Column(String(10), nullable=False, default="draft")
@@ -2953,7 +2962,7 @@ class RentalSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     contract_prefix = Column(String(10), nullable=False, default="RNT")
     default_rate_basis = Column(String(10), nullable=False, default="daily")
     default_deposit_percent = Column(Numeric(5, 2), nullable=False, default=20)
@@ -3105,7 +3114,7 @@ class AiReportSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     default_period = Column(String(20), nullable=False, default="30d")
     default_domains_json = Column(JSON, nullable=False, default=list)
     include_executive_brief = Column(Boolean, nullable=False, default=True)
@@ -3167,7 +3176,7 @@ class WorkflowSettings(Base):
 
     id = Column(Integer, primary_key=True)
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
-    is_enabled = Column(Boolean, nullable=False, default=False)
+    is_enabled = Column(Boolean, nullable=False, default=True)
     max_active_workflows = Column(Integer, nullable=False, default=50)
     default_run_as_role = Column(String(40), nullable=False, default="Admin")
     rate_limit_per_hour = Column(Integer, nullable=False, default=500)
@@ -3237,4 +3246,226 @@ class WorkflowRun(Base):
 
     company = relationship("Company", back_populates="workflow_runs")
     workflow = relationship("Workflow", back_populates="runs")
+
+
+class MarketingSettings(Base):
+    __tablename__ = "marketing_settings"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    default_owner_role = Column(String(40), nullable=False, default="Sales")
+    max_active_campaigns = Column(Integer, nullable=False, default=20)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="marketing_settings")
+
+
+class MarketingCampaign(Base):
+    __tablename__ = "marketing_campaigns"
+    __table_args__ = (UniqueConstraint("company_id", "campaign_code", name="uq_marketing_campaigns_company_code"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    campaign_code = Column(String(40), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    description = Column(Text, nullable=True)
+    campaign_type = Column(String(20), nullable=False, default="drip")
+    status = Column(String(20), nullable=False, default="draft", index=True)
+    audience_type = Column(String(20), nullable=False, default="leads")
+    audience_filter_json = Column(JSON, nullable=False, default=dict)
+    steps_json = Column(JSON, nullable=False, default=list)
+    enrolled_count = Column(Integer, nullable=False, default=0)
+    sent_count = Column(Integer, nullable=False, default=0)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="marketing_campaigns")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    enrollments = relationship("MarketingEnrollment", back_populates="campaign", cascade="all, delete-orphan")
+
+
+class MarketingEnrollment(Base):
+    __tablename__ = "marketing_enrollments"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    campaign_id = Column(Integer, ForeignKey("marketing_campaigns.id"), nullable=False, index=True)
+    lead_id = Column(Integer, ForeignKey("leads.id"), nullable=True, index=True)
+    contact_id = Column(Integer, ForeignKey("contacts.id"), nullable=True, index=True)
+    status = Column(String(20), nullable=False, default="active", index=True)
+    current_step = Column(Integer, nullable=False, default=0)
+    next_send_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    enrolled_at = Column(DateTime(timezone=True), server_default=func.now())
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+    company = relationship("Company", back_populates="marketing_enrollments")
+    campaign = relationship("MarketingCampaign", back_populates="enrollments")
+    lead = relationship("Lead")
+    contact = relationship("Contact")
+    send_logs = relationship("MarketingSendLog", back_populates="enrollment", cascade="all, delete-orphan")
+
+
+class MarketingSendLog(Base):
+    __tablename__ = "marketing_send_logs"
+
+    id = Column(Integer, primary_key=True)
+    enrollment_id = Column(Integer, ForeignKey("marketing_enrollments.id"), nullable=False, index=True)
+    step_index = Column(Integer, nullable=False, default=0)
+    channel = Column(String(20), nullable=False)
+    status = Column(String(20), nullable=False, default="queued")
+    subject = Column(String(300), nullable=True)
+    body_preview = Column(Text, nullable=True)
+    linked_record_type = Column(String(40), nullable=True)
+    linked_record_id = Column(Integer, nullable=True)
+    sent_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    enrollment = relationship("MarketingEnrollment", back_populates="send_logs")
+
+
+class AiAssistantSettings(Base):
+    __tablename__ = "ai_assistant_settings"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    allowed_actions_json = Column(JSON, nullable=False, default=list)
+    retain_sessions_days = Column(Integer, nullable=False, default=90)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="ai_assistant_settings")
+
+
+class AiAssistantSession(Base):
+    __tablename__ = "ai_assistant_sessions"
+    __table_args__ = (UniqueConstraint("company_id", "session_code", name="uq_ai_assistant_sessions_company_code"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    session_code = Column(String(40), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    title = Column(String(200), nullable=False, default="New chat")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="ai_assistant_sessions")
+    user = relationship("User")
+    messages = relationship("AiAssistantMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class AiAssistantMessage(Base):
+    __tablename__ = "ai_assistant_messages"
+
+    id = Column(Integer, primary_key=True)
+    session_id = Column(Integer, ForeignKey("ai_assistant_sessions.id"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)
+    content = Column(Text, nullable=False)
+    intent = Column(String(40), nullable=True)
+    citations_json = Column(JSON, nullable=False, default=list)
+    actions_json = Column(JSON, nullable=False, default=list)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    session = relationship("AiAssistantSession", back_populates="messages")
+
+
+class MarketplaceSettings(Base):
+    __tablename__ = "marketplace_settings"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, unique=True)
+    is_enabled = Column(Boolean, nullable=False, default=True)
+    public_api_enabled = Column(Boolean, nullable=False, default=False)
+    max_api_keys = Column(Integer, nullable=False, default=10)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="marketplace_settings")
+
+
+class MarketplaceIntegration(Base):
+    __tablename__ = "marketplace_integrations"
+    __table_args__ = (UniqueConstraint("company_id", "integration_key", name="uq_marketplace_integrations_company_key"),)
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    integration_key = Column(String(60), nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    category = Column(String(40), nullable=False)
+    status = Column(String(20), nullable=False, default="available", index=True)
+    config_json = Column(JSON, nullable=False, default=dict)
+    installed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="marketplace_integrations")
+    webhooks = relationship("MarketplaceWebhook", back_populates="integration", cascade="all, delete-orphan")
+
+
+class MarketplaceApiKey(Base):
+    __tablename__ = "marketplace_api_keys"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    key_prefix = Column(String(16), nullable=False, index=True)
+    key_hash = Column(String(128), nullable=False)
+    scopes_json = Column(JSON, nullable=False, default=list)
+    is_active = Column(Boolean, nullable=False, default=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    company = relationship("Company", back_populates="marketplace_api_keys")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+
+
+class MarketplaceWebhook(Base):
+    __tablename__ = "marketplace_webhooks"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    integration_id = Column(Integer, ForeignKey("marketplace_integrations.id"), nullable=True, index=True)
+    name = Column(String(120), nullable=False)
+    endpoint_url = Column(String(500), nullable=False)
+    events_json = Column(JSON, nullable=False, default=list)
+    signing_secret = Column(String(80), nullable=True)
+    status = Column(String(20), nullable=False, default="active")
+    last_triggered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+    )
+
+    company = relationship("Company", back_populates="marketplace_webhooks")
+    integration = relationship("MarketplaceIntegration", back_populates="webhooks")
 

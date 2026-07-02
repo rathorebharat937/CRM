@@ -325,6 +325,23 @@ PERMISSIONS = [
     ("workflows.delete", "Delete inactive workflows", "workflows"),
     ("workflows.manage_settings", "Configure Workflow Builder module settings", "workflows"),
     ("workflows.test", "Dry-run test workflows", "workflows"),
+    # Marketing Automation
+    ("marketing.view", "View marketing campaigns and enrollments", "marketing"),
+    ("marketing.create", "Create marketing campaigns", "marketing"),
+    ("marketing.edit", "Edit draft marketing campaigns", "marketing"),
+    ("marketing.activate", "Activate and pause campaigns", "marketing"),
+    ("marketing.run", "Process due campaign steps", "marketing"),
+    ("marketing.manage_settings", "Configure marketing module settings", "marketing"),
+    # AI Assistant
+    ("ai_assistant.view", "View AI Assistant sessions", "ai_assistant"),
+    ("ai_assistant.chat", "Chat with AI Assistant", "ai_assistant"),
+    ("ai_assistant.manage_settings", "Configure AI Assistant settings", "ai_assistant"),
+    # API & App Marketplace
+    ("marketplace.view", "View integration catalog and marketplace hub", "marketplace"),
+    ("marketplace.install", "Install and uninstall integrations", "marketplace"),
+    ("marketplace.manage_keys", "Create and revoke API keys", "marketplace"),
+    ("marketplace.manage_webhooks", "Manage outbound webhooks", "marketplace"),
+    ("marketplace.manage_settings", "Configure marketplace settings", "marketplace"),
 ]
 
 ROLE_PERMISSIONS: dict[str, list[str]] = {
@@ -658,6 +675,17 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "ai_reports.view",
         "ai_reports.generate",
         "workflows.view",
+        "marketing.view",
+        "marketing.create",
+        "marketing.edit",
+        "marketing.activate",
+        "marketing.run",
+        "ai_assistant.view",
+        "ai_assistant.chat",
+        "marketplace.view",
+        "marketplace.install",
+        "marketplace.manage_keys",
+        "marketplace.manage_webhooks",
 
     ],
     "Sales": [
@@ -740,6 +768,10 @@ ROLE_PERMISSIONS: dict[str, list[str]] = {
         "rental.create",
         "rental.confirm",
         "ai_reports.view",
+        "marketing.view",
+        "marketing.run",
+        "ai_assistant.view",
+        "ai_assistant.chat",
     ],
     "Accountant": [
         "profile.view",
