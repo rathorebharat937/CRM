@@ -51,7 +51,7 @@ function FollowUps() {
     <DashboardLayout title="Follow-ups" roleLabel={role}>
       <div className="crm-panel">
         {stats && (
-          <div className="crm-pipeline-stats">
+          <div className="crm-stat-strip">
             <div className="crm-stat-card">
               <span className="crm-stat-label">Due today</span>
               <strong>{stats.due_today}</strong>
@@ -80,7 +80,7 @@ function FollowUps() {
                 className={`crm-btn crm-btn-sm ${filter === f ? "crm-btn-inline" : "crm-btn-outline"}`}
                 onClick={() => setFilter(f)}
               >
-                {f.replace("_", " ")}
+                {f === "due_today" ? "Due today" : f.charAt(0).toUpperCase() + f.slice(1).replace("_", " ")}
               </button>
             ))}
           </div>
@@ -116,23 +116,28 @@ function FollowUps() {
               {queue.items.map((item) => (
                 <tr key={`${item.source}-${item.id}`}>
                   <td>
-                    {item.due_at ? new Date(item.due_at).toLocaleString() : "—"}
-                    {item.is_overdue && <span className="crm-badge crm-deal-lost crm-ml">Overdue</span>}
+                    <span className="crm-cell-primary">
+                      {item.due_at ? new Date(item.due_at).toLocaleString() : "—"}
+                    </span>
+                    {item.is_overdue && <span className="crm-badge crm-deal-lost">Overdue</span>}
                     {item.is_due_today && !item.is_overdue && (
-                      <span className="crm-badge crm-deal-proposal crm-ml">Today</span>
+                      <span className="crm-badge crm-deal-proposal">Today</span>
                     )}
                   </td>
                   <td>
-                    <strong>{item.title}</strong>
-                    <br />
-                    <span className="crm-muted">{item.source === "reminder" ? "Reminder" : "Client note"}</span>
+                    <span className="crm-cell-primary">{item.title}</span>
+                    <span className="crm-cell-secondary">
+                      {item.source === "reminder" ? "Reminder" : "Client note"}
+                    </span>
                   </td>
                   <td>
                     {item.entity_path ? (
                       <Link to={item.entity_path} className="crm-nav-link">{item.subtitle || "View"}</Link>
-                    ) : (item.subtitle || "—")}
+                    ) : (
+                      <span className="crm-text-secondary">{item.subtitle || "—"}</span>
+                    )}
                   </td>
-                  <td>{item.reminder_type}</td>
+                  <td><span className="crm-text-secondary">{item.reminder_type}</span></td>
                   <td>{item.assigned_to_name || "—"}</td>
                   <td>
                     {canComplete(item) && (

@@ -34,3 +34,14 @@ export function formatPeriod(start, end) {
   if (!start || !end) return "—";
   return `${formatDate(start)} – ${formatDate(end)}`;
 }
+
+/** Remove duplicate watch items (same text/severity/link) from aggregated lists. */
+export function dedupeWatchItems(items = []) {
+  const seen = new Set();
+  return items.filter((w) => {
+    const key = `${w.severity || ""}|${w.text || ""}|${w.link_path || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}

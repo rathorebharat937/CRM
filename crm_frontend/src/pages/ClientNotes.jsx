@@ -59,7 +59,7 @@ function ClientNotes() {
     <DashboardLayout title="Client Notes" roleLabel={role}>
       <div className="crm-panel">
         <div className="crm-detail-header">
-          <p className="crm-muted">{data.total} note{data.total === 1 ? "" : "s"}</p>
+          <p className="crm-meta-sub">{data.total} note{data.total === 1 ? "" : "s"}</p>
           <div className="crm-inline-actions">
             {hasPermission("client_notes.manage_followups") && (
               <Link to="/client-notes/follow-ups" className="crm-btn crm-btn-sm crm-btn-outline">Follow-up queue</Link>
@@ -68,15 +68,27 @@ function ClientNotes() {
         </div>
 
         {stats && (
-          <div className="crm-stats-row crm-mt">
-            <div className="crm-stat-card"><span className="crm-muted">Total</span><strong>{stats.total}</strong></div>
-            <div className="crm-stat-card"><span className="crm-muted">Pinned</span><strong>{stats.pinned}</strong></div>
-            <div className="crm-stat-card"><span className="crm-muted">Follow-ups</span><strong>{stats.follow_up_pending}</strong></div>
-            <div className="crm-stat-card crm-stat-warn"><span className="crm-muted">Overdue</span><strong>{stats.follow_up_overdue}</strong></div>
+          <div className="crm-stat-strip crm-mt">
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Total</span>
+              <strong>{stats.total}</strong>
+            </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Pinned</span>
+              <strong>{stats.pinned}</strong>
+            </div>
+            <div className="crm-stat-card">
+              <span className="crm-stat-label">Follow-ups</span>
+              <strong>{stats.follow_up_pending}</strong>
+            </div>
+            <div className="crm-stat-card crm-stat-warn">
+              <span className="crm-stat-label">Overdue</span>
+              <strong>{stats.follow_up_overdue}</strong>
+            </div>
           </div>
         )}
 
-        <form onSubmit={handleSearch} className="crm-filters crm-mt">
+        <form onSubmit={handleSearch} className="crm-filter-bar crm-mt">
           <input
             placeholder="Search notes…"
             value={search}
@@ -119,7 +131,7 @@ function ClientNotes() {
               </div>
               <strong>{note.title}</strong>
               {note.contact_name && (
-                <p className="crm-muted">
+                <p className="crm-text-secondary">
                   {note.contact_id ? (
                     <Link to={`/contacts/${note.contact_id}`} className="crm-nav-link">{note.contact_name}</Link>
                   ) : note.contact_name}
@@ -133,13 +145,13 @@ function ClientNotes() {
                   {expanded[note.id] ? "Show less" : "Show more"}
                 </button>
               )}
-              <div className="crm-note-card-links crm-muted">
+              <div className="crm-note-card-links">
                 {note.deal_id && <Link to={`/deals/${note.deal_id}`} className="crm-nav-link">Deal</Link>}
                 {note.quotation_id && <Link to={`/quotations/${note.quotation_id}`} className="crm-nav-link">Quote</Link>}
                 {note.sales_order_id && <Link to={`/sales-orders/${note.sales_order_id}`} className="crm-nav-link">Order</Link>}
                 {note.invoice_id && <Link to={`/invoices/${note.invoice_id}`} className="crm-nav-link">Invoice</Link>}
               </div>
-              <div className="crm-note-card-meta crm-muted">
+              <div className="crm-note-card-meta">
                 {note.author_name} · {VISIBILITY_LABELS[note.visibility_scope]}
                 {note.revision_count > 0 && " · Edited"}
               </div>

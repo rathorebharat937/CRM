@@ -46,6 +46,9 @@ function DashboardLayout({ title, roleLabel, children }) {
 
         {!isHome && (
           <nav className="crm-shell-crumb" aria-label="Breadcrumb">
+            <Link to={homePath} className="crm-shell-back" aria-label="Back to all apps">
+              ←
+            </Link>
             <Link to={homePath}>Apps</Link>
             <span className="crm-shell-crumb-sep" aria-hidden="true">
               ›
@@ -80,6 +83,12 @@ function DashboardLayout({ title, roleLabel, children }) {
       </header>
 
       <main className={`crm-dashboard-main${isHome ? " crm-dashboard-main-wide" : ""}`}>
+        {!isHome && (
+          <Link to={homePath} className="crm-back-to-apps" aria-label="Back to all apps">
+            <span className="crm-back-to-apps-icon" aria-hidden="true">←</span>
+            <span>All apps</span>
+          </Link>
+        )}
         {children}
       </main>
     </div>

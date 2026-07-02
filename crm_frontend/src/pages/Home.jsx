@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 
 import AppIcon from "../components/AppIcon";
-import { LANDING_APPS, LANDING_PORTALS } from "../config/appCatalog";
+import { LANDING_APPS, LANDING_PLATFORM_APPS, LANDING_PORTALS } from "../config/appCatalog";
 
 const DIFFERENTIATORS = [
   "GST quotations & invoices",
@@ -70,9 +70,9 @@ function Home() {
         <div className="crm-landing-apps-panel">
           <p className="crm-landing-apps-intro">
             Open only what you need — leads, quotes, GST invoices, and payment
-            follow-ups on day one. Switch on HR, payroll, inventory, and reports
-            as you grow. Same login, same company profile, same BlackPapers
-            workspace.
+            follow-ups on day one. Switch on HR, payroll, inventory, and
+            platform apps (website, store, POS, manufacturing, AI) as you
+            grow. Same login, same company profile, same BlackPapers workspace.
           </p>
           <div className="crm-app-grid crm-app-grid-landing">
             {LANDING_APPS.map((app) => (
@@ -84,6 +84,30 @@ function Home() {
                 <AppIcon name={app.icon} color={app.color} />
                 <span className="crm-app-tile-label">{app.label}</span>
                 <span className="crm-app-tile-sub">{app.subtitle}</span>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="crm-landing-platform-heading">Platform &amp; Growth</h3>
+          <p className="crm-landing-apps-intro crm-landing-platform-intro">
+            Fourteen platform modules — website, store, POS, manufacturing, quality,
+            maintenance, field service, subscriptions, rental, workflows, marketing,
+            AI reports, AI assistant, and API marketplace. Enable each module in its
+            Settings after sign-in.
+          </p>
+          <div className="crm-app-grid crm-app-grid-landing">
+            {LANDING_PLATFORM_APPS.map((app) => (
+              <div
+                key={app.id}
+                className={`crm-app-tile crm-app-tile-static${app.comingSoon ? " crm-app-tile-coming-soon" : ""}`}
+                style={{ "--app-accent": app.color }}
+              >
+                <AppIcon name={app.icon} color={app.color} />
+                <span className="crm-app-tile-label">{app.label}</span>
+                <span className="crm-app-tile-sub">{app.subtitle}</span>
+                {app.comingSoon && (
+                  <span className="crm-app-tile-badge">Soon</span>
+                )}
               </div>
             ))}
           </div>

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 
-import { API_URL } from "../utils/api";
+import { publicApiPath } from "../utils/api";
 import { SECTION_LABELS } from "../utils/website";
 
 function formatAddress(company) {
@@ -20,7 +20,7 @@ function PublicForm({ form, companySlug, onSuccess }) {
     e.preventDefault();
     setError("");
     try {
-      const response = await fetch(`${API_URL}/public/${companySlug}/forms/${form.slug}/submit`, {
+      const response = await fetch(publicApiPath(`/public/${companySlug}/forms/${form.slug}/submit`), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ fields: values, website_trap: values.website_trap || "" }),
@@ -200,7 +200,7 @@ export default function WebsiteSectionRenderer({ section, company, companySlug, 
   }
 }
 
-export function PublicSiteShell({ company, companySlug, children, preview, shopEnabled }) {
+export function PublicSiteShell({ company, companySlug, children, preview, shopEnabled, headerActions }) {
   return (
     <div className="crm-public-site">
       {preview && (
@@ -209,17 +209,22 @@ export function PublicSiteShell({ company, companySlug, children, preview, shopE
       <header className="crm-public-site-header">
         <div className="crm-public-site-brand">
           {company.logo_filename && (
-            <img src={`${API_URL}/files/logo/${company.logo_filename}`} alt="" className="crm-public-site-logo" />
+            <img src={publicApiPath(`/files/logo/${company.logo_filename}`)} alt="" className="crm-public-site-logo" />
           )}
-          <strong>{company.display_name}</strong>
+          <Link to={`/s/${companySlug}`} className="crm-public-site-brand-name">
+            {company.display_name}
+          </Link>
         </div>
-        <nav className="crm-public-site-nav">
-          <Link to={`/s/${companySlug}`}>Home</Link>
-          <Link to={`/s/${companySlug}/blog`}>Blog</Link>
-          {shopEnabled && <Link to={`/s/${companySlug}/shop`}>Shop</Link>}
-        </nav>
+        <div className="crm-public-site-header-end">
+          <nav className="crm-public-site-nav" aria-label="Site">
+            <Link to={`/s/${companySlug}`}>Home</Link>
+            <Link to={`/s/${companySlug}/blog`}>Blog</Link>
+            {shopEnabled && <Link to={`/s/${companySlug}/shop`}>Shop</Link>}
+          </nav>
+          {headerActions ? <div className="crm-public-site-actions">{headerActions}</div> : null}
+        </div>
       </header>
-      <main>{children}</main>
+      <main className="crm-public-site-main">{children}</main>
       <footer className="crm-public-site-footer">
         <p>{company.display_name} · {company.city || company.country}</p>
         {company.website && <p>{company.website}</p>}

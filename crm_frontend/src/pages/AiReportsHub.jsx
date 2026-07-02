@@ -7,6 +7,7 @@ import {
   DOMAIN_LABELS,
   PERIOD_LABELS,
   PERIOD_OPTIONS,
+  dedupeWatchItems,
   formatDateTime,
   formatPeriod,
   severityClass,
@@ -58,6 +59,11 @@ function AiReportsHub() {
   useEffect(() => {
     load().catch((err) => setError(err.message));
   }, []);
+
+  const watchItems = useMemo(
+    () => dedupeWatchItems(dashboard?.watch_items || []),
+    [dashboard?.watch_items]
+  );
 
   const activeSection = useMemo(
     () => latestRun?.sections?.find((s) => s.domain === activeDomain),
@@ -154,7 +160,7 @@ function AiReportsHub() {
                 {" "}Include executive brief
               </label>
             </div>
-            <button type="submit" className="crm-btn" disabled={generating || selectedDomains.length === 0}>
+            <button type="submit" className="crm-btn crm-btn-inline ai-reports-generate-btn" disabled={generating || selectedDomains.length === 0}>
               {generating ? "Generating…" : "Generate"}
             </button>
           </form>
@@ -187,7 +193,7 @@ function AiReportsHub() {
                     ))}
                   </div>
                   {activeSection && (
-                    <div className="crm-mt">
+                    <div className="ai-reports-domain-panel">
                       <h3>{activeSection.headline}</h3>
                       <p>{activeSection.narrative}</p>
                       {activeSection.bullets?.length > 0 && (
@@ -208,14 +214,16 @@ function AiReportsHub() {
 
             <aside className="ai-reports-sidebar">
               <h3>Watch items</h3>
-              {(dashboard?.watch_items || []).length === 0 ? (
+              {watchItems.length === 0 ? (
                 <p className="crm-muted">No watch items for this brief.</p>
               ) : (
                 <ul className="ai-reports-watch-list">
-                  {dashboard.watch_items.map((w, i) => (
-                    <li key={i}>
+                  {watchItems.map((w) => (
+                    <li key={`${w.severity}-${w.text}-${w.link_path || ""}`}>
                       <span className={severityClass(w.severity)}>{w.severity}</span>
-                      {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : <span>{w.text}</span>}
+                      <span className="ai-reports-watch-text">
+                        {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : w.text}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -229,8 +237,8 @@ function AiReportsHub() {
         )}
 
         {dashboard?.recent_runs?.length > 0 && (
-          <>
-            <h3 className="crm-mt">Recent runs</h3>
+          <section className="ai-reports-recent crm-mt">
+            <h3>Recent runs</h3>
             <table className="crm-table crm-mt">
               <thead>
                 <tr>
@@ -255,7 +263,7 @@ function AiReportsHub() {
                 ))}
               </tbody>
             </table>
-          </>
+          </section>
         )}
       </div>
     </DashboardLayout>

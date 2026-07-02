@@ -17,6 +17,9 @@ function AppTile({ app, asLink = true }) {
       {app.subtitle && (
         <span className="crm-app-tile-sub">{app.subtitle}</span>
       )}
+      {app.comingSoon && (
+        <span className="crm-app-tile-badge">Soon</span>
+      )}
     </>
   );
 
@@ -31,7 +34,7 @@ function AppTile({ app, asLink = true }) {
   return (
     <Link
       to={app.path}
-      className="crm-app-tile"
+      className={`crm-app-tile${app.comingSoon ? " crm-app-tile-coming-soon" : ""}`}
       style={{ "--app-accent": app.color }}
       aria-label={app.label}
     >

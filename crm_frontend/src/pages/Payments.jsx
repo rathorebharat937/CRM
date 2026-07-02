@@ -37,7 +37,7 @@ function Payments() {
     <DashboardLayout title="Payments" roleLabel={role}>
       <div className="crm-panel">
         {summary && (
-          <div className="crm-pipeline-stats">
+          <div className="crm-stat-strip">
             <div className="crm-stat-card">
               <span className="crm-stat-label">Total received</span>
               <strong>{formatCurrency(summary.total_received)}</strong>

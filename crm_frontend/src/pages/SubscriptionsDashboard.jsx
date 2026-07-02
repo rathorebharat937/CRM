@@ -8,11 +8,22 @@ import { formatCurrency, formatDate, subscriptionStatusClass } from "../utils/su
 
 function SubscriptionsDashboard() {
   const role = localStorage.getItem("role") || "Staff";
+  const [settings, setSettings] = useState(null);
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
   const [billingMsg, setBillingMsg] = useState("");
 
-  const load = () => apiFetch("/subscriptions/dashboard").then(setData).catch((err) => setError(err.message));
+  const load = () =>
+    Promise.all([
+      apiFetch("/subscriptions/settings"),
+      apiFetch("/subscriptions/dashboard"),
+    ])
+      .then(([cfg, dash]) => {
+        setSettings(cfg);
+        setData(dash);
+        setError("");
+      })
+      .catch((err) => setError(err.message));
 
   useEffect(() => { load(); }, []);
 
@@ -47,8 +58,18 @@ function SubscriptionsDashboard() {
           </div>
         </div>
         {error && <p className="crm-error crm-mt">{error}</p>}
+        {settings && !settings.is_enabled && (
+          <p className="crm-muted crm-mt">
+            Subscriptions module is not enabled.{" "}
+            {hasPermission("subscriptions.manage_settings") ? (
+              <Link to="/subscriptions/settings">Enable it in Settings</Link>
+            ) : (
+              "Ask an admin to enable it in Settings."
+            )}
+          </p>
+        )}
         {billingMsg && <p className="crm-success crm-mt">{billingMsg}</p>}
-        {data && (
+        {data && settings?.is_enabled && (
           <>
             <div className="crm-stats-grid crm-mt">
               <div className="crm-stat-card"><span className="crm-stat-value">{data.active_subscriptions}</span><span className="crm-stat-label">Active</span></div>

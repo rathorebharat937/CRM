@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
-import { apiFetch } from "../utils/api";
+import { loadSettings, saveSettings, SettingsStatusMessages } from "../utils/settingsPage";
 
 const NOTIFY_ROLES = ["Admin", "Manager", "Employee", "Sales", "Accountant"];
 
@@ -13,7 +13,7 @@ function SubscriptionSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch("/subscriptions/settings").then(setForm).catch((err) => setError(err.message));
+    loadSettings("/subscriptions/settings", setForm, setError);
   }, []);
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -25,24 +25,16 @@ function SubscriptionSettings() {
     });
   };
 
-  const save = async (e) => {
+  const save = (e) => {
     e.preventDefault();
-    setSaved(false);
-    try {
-      const data = await apiFetch("/subscriptions/settings", { method: "PUT", body: JSON.stringify(form) });
-      setForm(data);
-      setSaved(true);
-    } catch (err) {
-      setError(err.message);
-    }
+    saveSettings("/subscriptions/settings", form, { setForm, setError, setSaved });
   };
 
   return (
     <DashboardLayout title="Subscription settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/subscriptions" className="crm-muted">← Subscriptions</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         {form && (
           <form className="crm-form crm-mt" onSubmit={save}>
             <div className="crm-form-field">

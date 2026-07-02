@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
-import { apiFetch } from "../utils/api";
+import { loadSettings, saveSettings, SettingsStatusMessages } from "../utils/settingsPage";
 
 function WorkflowSettings() {
   const role = localStorage.getItem("role") || "Staff";
@@ -11,29 +11,21 @@ function WorkflowSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch("/workflows/settings").then(setForm).catch((err) => setError(err.message));
+    loadSettings("/workflows/settings", setForm, setError);
   }, []);
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
-  const save = async (e) => {
+  const save = (e) => {
     e.preventDefault();
-    setSaved(false);
-    try {
-      const data = await apiFetch("/workflows/settings", { method: "PUT", body: JSON.stringify(form) });
-      setForm(data);
-      setSaved(true);
-    } catch (err) {
-      setError(err.message);
-    }
+    saveSettings("/workflows/settings", form, { setForm, setError, setSaved });
   };
 
   return (
     <DashboardLayout title="Workflow settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/workflows" className="crm-muted">← Workflows</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         {form && (
           <form className="crm-form crm-mt" onSubmit={save}>
             <div className="crm-form-field">

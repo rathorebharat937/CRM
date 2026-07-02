@@ -258,6 +258,100 @@ const ICONS = {
     <rect x="23" y="23" width="11" height="11" rx="2" fill="currentColor" />
   </>
   ),
+  website: (
+  <>
+    <rect x="8" y="10" width="28" height="20" rx="2" fill="currentColor" opacity="0.2" stroke="currentColor" strokeWidth="2" />
+    <path d="M8 14h28M14 10V8h16v2" stroke="currentColor" strokeWidth="2" />
+    <rect x="12" y="18" width="10" height="6" rx="1" fill="currentColor" opacity="0.7" />
+    <rect x="24" y="18" width="8" height="6" rx="1" fill="currentColor" opacity="0.45" />
+  </>
+  ),
+  shop: (
+  <>
+    <path d="M10 16l3-6h18l3 6v14H10V16z" fill="currentColor" opacity="0.85" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+    <path d="M10 20h24" stroke="currentColor" strokeWidth="2" />
+    <circle cx="16" cy="32" r="2" fill="currentColor" />
+    <circle cx="28" cy="32" r="2" fill="currentColor" />
+  </>
+  ),
+  pos: (
+  <>
+    <rect x="10" y="12" width="24" height="22" rx="3" fill="currentColor" opacity="0.25" stroke="currentColor" strokeWidth="2" />
+    <rect x="14" y="18" width="16" height="4" rx="1" fill="currentColor" />
+    <circle cx="18" cy="28" r="2" fill="currentColor" />
+    <circle cx="26" cy="28" r="2" fill="currentColor" />
+  </>
+  ),
+  manufacturing: (
+  <>
+    <path d="M8 30V18l6-8 6 6 8-10 8 12v14H8z" fill="currentColor" opacity="0.35" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+    <circle cx="30" cy="14" r="3" fill="currentColor" />
+  </>
+  ),
+  quality: (
+  <>
+    <path d="M22 8l4 4-10 10-6-6 4-4 2 2 6-6z" fill="currentColor" opacity="0.85" />
+    <circle cx="30" cy="12" r="4" fill="none" stroke="currentColor" strokeWidth="2" />
+  </>
+  ),
+  maintenance: (
+  <>
+    <path d="M28 12l4 4-8 8-4-4 8-8z" fill="currentColor" />
+    <path d="M14 30l-4-4 6-6 4 4-6 6z" fill="currentColor" opacity="0.55" />
+    <circle cx="16" cy="16" r="5" fill="none" stroke="currentColor" strokeWidth="2" />
+  </>
+  ),
+  fieldService: (
+  <>
+    <circle cx="14" cy="14" r="4" fill="currentColor" />
+    <path d="M8 32c0-4 2.5-7 6-7M22 18h12v14H22z" fill="currentColor" opacity="0.35" stroke="currentColor" strokeWidth="2" />
+    <path d="M26 24h4M26 28h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+  ),
+  subscription: (
+  <>
+    <rect x="10" y="14" width="24" height="16" rx="3" fill="currentColor" opacity="0.25" stroke="currentColor" strokeWidth="2" />
+    <path d="M10 20h24" stroke="currentColor" strokeWidth="2" />
+    <path d="M16 26h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+  ),
+  rental: (
+  <>
+    <rect x="12" y="12" width="20" height="16" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="2" />
+    <path d="M12 18h20M18 12v-2h8v2" stroke="currentColor" strokeWidth="2" />
+    <path d="M16 28h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+  ),
+  aiSpark: (
+  <>
+    <path d="M22 8l2 6 6 2-6 2-2 6-2-6-6-2 6-2 2-6z" fill="currentColor" />
+    <circle cx="32" cy="28" r="3" fill="currentColor" opacity="0.5" />
+  </>
+  ),
+  workflow: (
+  <>
+    <circle cx="12" cy="22" r="4" fill="currentColor" opacity="0.55" />
+    <circle cx="32" cy="12" r="4" fill="currentColor" opacity="0.75" />
+    <circle cx="32" cy="32" r="4" fill="currentColor" />
+    <path d="M16 20l12-6M16 24l12 6" stroke="currentColor" strokeWidth="2" />
+  </>
+  ),
+  marketing: (
+  <>
+    <path d="M8 20c6-8 14-8 20 0-6 8-14 8-20 0z" fill="currentColor" opacity="0.3" stroke="currentColor" strokeWidth="2" />
+    <circle cx="22" cy="20" r="3" fill="currentColor" />
+    <path d="M30 16l6-4v16l-6-4" fill="currentColor" opacity="0.7" />
+  </>
+  ),
+  marketplace: (
+  <>
+    <rect x="10" y="12" width="8" height="8" rx="2" fill="currentColor" opacity="0.55" />
+    <rect x="20" y="12" width="8" height="8" rx="2" fill="currentColor" opacity="0.75" />
+    <rect x="30" y="12" width="4" height="8" rx="1" fill="currentColor" />
+    <path d="M10 26h24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    <path d="M14 30h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  </>
+  ),
 };
 
 function AppIcon({ name, color, size = 44 }) {

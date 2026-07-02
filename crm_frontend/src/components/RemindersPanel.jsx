@@ -71,7 +71,7 @@ function RemindersPanel({ leadId, dealId, contactId, compact = false }) {
   if (!hasPermission("reminders.view")) return null;
 
   return (
-    <div className={compact ? "" : "crm-mt-lg"}>
+    <section className={`crm-entity-section ${compact ? "" : "crm-mt-lg"}`.trim()}>
       <div className="crm-detail-header">
         <h3>Follow-up reminders</h3>
         {canCreate && (
@@ -84,7 +84,7 @@ function RemindersPanel({ leadId, dealId, contactId, compact = false }) {
       {error && <p className="crm-error crm-mt">{error}</p>}
 
       {showForm && canCreate && (
-        <form onSubmit={handleSubmit} className="crm-form crm-mt">
+        <form onSubmit={handleSubmit} className="crm-form crm-note-quick-form crm-mt">
           <div className="crm-form-grid">
             <div className="crm-span-2">
               <label>Title *</label>
@@ -110,29 +110,37 @@ function RemindersPanel({ leadId, dealId, contactId, compact = false }) {
               </select>
             </div>
           </div>
-          <button type="submit" className="crm-btn crm-btn-sm">Save reminder</button>
+          <button type="submit" className="crm-btn crm-btn-sm crm-btn-inline">Save reminder</button>
         </form>
       )}
 
       {reminders.length === 0 ? (
         <p className="crm-muted crm-mt">No pending reminders.</p>
       ) : (
-        <ul className="crm-timeline crm-mt">
+        <ul className="crm-reminder-list">
           {reminders.map((r) => (
-            <li key={r.id}>
-              <strong>{r.title}</strong>
-              <span className="crm-muted"> · {r.reminder_type_label} · {new Date(r.due_at).toLocaleString()}</span>
-              {r.is_overdue && <span className="crm-badge crm-deal-lost crm-ml">Overdue</span>}
-              {canEdit && (
-                <button type="button" className="crm-btn crm-btn-sm crm-btn-outline crm-ml" onClick={() => handleComplete(r.id)}>
-                  Done
-                </button>
-              )}
+            <li key={r.id} className="crm-reminder-item">
+              <div className="crm-reminder-main">
+                <strong className="crm-reminder-title">{r.title}</strong>
+                <p className="crm-reminder-meta">
+                  <span>{r.reminder_type_label}</span>
+                  <span aria-hidden="true">·</span>
+                  <span>{new Date(r.due_at).toLocaleString()}</span>
+                </p>
+              </div>
+              <div className="crm-reminder-actions">
+                {r.is_overdue && <span className="crm-badge crm-deal-lost">Overdue</span>}
+                {canEdit && (
+                  <button type="button" className="crm-btn crm-btn-sm crm-btn-outline" onClick={() => handleComplete(r.id)}>
+                    Done
+                  </button>
+                )}
+              </div>
             </li>
           ))}
         </ul>
       )}
-    </div>
+    </section>
   );
 }
 

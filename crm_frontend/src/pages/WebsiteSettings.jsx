@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
 import { apiFetch } from "../utils/api";
+import { SettingsStatusMessages } from "../utils/settingsPage";
 
 function WebsiteSettings() {
   const role = localStorage.getItem("role") || "Staff";
@@ -12,12 +13,14 @@ function WebsiteSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
+    setError("");
     apiFetch("/website/settings").then((s) => {
       setForm({
         company_slug: s.company_slug,
         home_page_id: s.home_page_id || "",
         default_lead_assignee_id: s.default_lead_assignee_id || "",
       });
+      setError("");
     }).catch((err) => setError(err.message));
     apiFetch("/website/pages").then((d) => setPages(d.items || [])).catch(() => {});
   }, []);
@@ -34,8 +37,10 @@ function WebsiteSettings() {
           default_lead_assignee_id: form.default_lead_assignee_id ? Number(form.default_lead_assignee_id) : null,
         }),
       });
+      setError("");
       setSaved(true);
     } catch (err) {
+      setSaved(false);
       setError(err.message);
     }
   };
@@ -44,8 +49,7 @@ function WebsiteSettings() {
     <DashboardLayout title="Website settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/website" className="crm-back-link">← Website</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         <div className="crm-form-grid crm-mt">
           <div className="crm-form-field">
             <label>Public company slug</label>

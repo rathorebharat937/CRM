@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
 import { apiFetch } from "../utils/api";
-import { DOMAIN_LABELS, formatPeriod, severityClass } from "../utils/aiReports";
+import { DOMAIN_LABELS, dedupeWatchItems, formatPeriod, severityClass } from "../utils/aiReports";
 
 function AiInsightRunDetail() {
   const { id } = useParams();
@@ -18,6 +18,7 @@ function AiInsightRunDetail() {
 
   const sections = (run?.sections || []).filter((s) => s.domain !== "executive");
   const executive = run?.sections?.find((s) => s.domain === "executive");
+  const watchItems = dedupeWatchItems(run?.watch_items || []);
 
   return (
     <DashboardLayout title="Insight detail" roleLabel={role}>
@@ -40,24 +41,27 @@ function AiInsightRunDetail() {
               <p>{run.executive_summary || executive?.narrative}</p>
             </div>
 
-            {run.watch_items?.length > 0 && (
-              <>
-                <h3 className="crm-mt">Top watch items</h3>
+            {watchItems.length > 0 && (
+              <aside className="ai-reports-sidebar crm-mt">
+                <h3>Top watch items</h3>
                 <ul className="ai-reports-watch-list">
-                  {run.watch_items.map((w, i) => (
-                    <li key={i}>
+                  {watchItems.map((w) => (
+                    <li key={`${w.severity}-${w.text}-${w.link_path || ""}`}>
                       <span className={severityClass(w.severity)}>{w.severity}</span>
-                      {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : <span>{w.text}</span>}
+                      <span className="ai-reports-watch-text">
+                        {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : w.text}
+                      </span>
                     </li>
                   ))}
                 </ul>
-              </>
+              </aside>
             )}
 
+            <div className="ai-reports-sections">
             {sections.map((section) => (
-              <div key={section.id} className="crm-mt ai-reports-section">
-                <h3>{DOMAIN_LABELS[section.domain] || section.domain}</h3>
-                <h4>{section.headline}</h4>
+              <div key={section.id} className="ai-reports-section">
+                <p className="ai-reports-section-label">{DOMAIN_LABELS[section.domain] || section.domain}</p>
+                <h3>{section.headline}</h3>
                 <p>{section.narrative}</p>
                 {section.bullets?.length > 0 && (
                   <ul className="ai-reports-bullets">
@@ -71,10 +75,12 @@ function AiInsightRunDetail() {
                 )}
                 {section.watch_items?.length > 0 && (
                   <ul className="ai-reports-watch-list crm-mt">
-                    {section.watch_items.map((w, i) => (
-                      <li key={i}>
+                    {dedupeWatchItems(section.watch_items).map((w) => (
+                      <li key={`${w.severity}-${w.text}-${w.link_path || ""}`}>
                         <span className={severityClass(w.severity)}>{w.severity}</span>
-                        {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : <span>{w.text}</span>}
+                        <span className="ai-reports-watch-text">
+                          {w.link_path ? <Link to={w.link_path}>{w.text}</Link> : w.text}
+                        </span>
                       </li>
                     ))}
                   </ul>
@@ -91,6 +97,7 @@ function AiInsightRunDetail() {
                 )}
               </div>
             ))}
+            </div>
           </>
         )}
       </div>

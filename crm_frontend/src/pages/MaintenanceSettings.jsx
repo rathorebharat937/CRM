@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
 import { apiFetch } from "../utils/api";
+import { loadSettings, saveSettings, SettingsStatusMessages } from "../utils/settingsPage";
 
 const NOTIFY_ROLES = ["Admin", "Manager", "Employee", "Sales", "Accountant"];
 
@@ -14,12 +15,14 @@ function MaintenanceSettings() {
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
 
-  const load = () => {
-    apiFetch("/maintenance/settings").then(setForm).catch((err) => setError(err.message));
+  const loadCategories = () => {
     apiFetch("/maintenance/categories").then(setCategories).catch(() => {});
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    loadSettings("/maintenance/settings", setForm, setError);
+    loadCategories();
+  }, []);
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
 
@@ -33,16 +36,9 @@ function MaintenanceSettings() {
     });
   };
 
-  const save = async (e) => {
+  const save = (e) => {
     e.preventDefault();
-    setSaved(false);
-    try {
-      const data = await apiFetch("/maintenance/settings", { method: "PUT", body: JSON.stringify(form) });
-      setForm(data);
-      setSaved(true);
-    } catch (err) {
-      setError(err.message);
-    }
+    saveSettings("/maintenance/settings", form, { setForm, setError, setSaved });
   };
 
   const addCategory = async (e) => {
@@ -54,8 +50,11 @@ function MaintenanceSettings() {
         body: JSON.stringify({ name: newCategory.trim() }),
       });
       setNewCategory("");
-      load();
+      loadCategories();
+      setSaved(false);
+      setError("");
     } catch (err) {
+      setSaved(false);
       setError(err.message);
     }
   };
@@ -64,8 +63,7 @@ function MaintenanceSettings() {
     <DashboardLayout title="Maintenance settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/maintenance" className="crm-muted">← Maintenance</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         {form && (
           <form className="crm-form crm-mt" onSubmit={save}>
             <div className="crm-form-field">

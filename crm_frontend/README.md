@@ -188,6 +188,7 @@ Serve `build/` with a static host. Update `API_URL` in `src/utils/api.js` for pr
 
 ## Not built yet (frontend)
 
+- **Level 5 Phase 2** — Live email/WhatsApp from marketing; LLM-backed AI Assistant; live Razorpay/Tally sync (see [../docs/LEVEL_5_STATUS.md](../docs/LEVEL_5_STATUS.md))
 - WhatsApp / email **send** from CRM (templates UI exists; needs SMTP/WhatsApp API)
 - Push / SMS delivery (in-app alerts work)
 - Multi-tenant **Register your business** flow (roadmap — [../docs/MULTI_TENANT_ROADMAP.md](../docs/MULTI_TENANT_ROADMAP.md))

@@ -195,6 +195,13 @@ import AiReportsHub from "./pages/AiReportsHub";
 import AiInsightRunDetail from "./pages/AiInsightRunDetail";
 import AiReportsSettings from "./pages/AiReportsSettings";
 import WorkflowsHub from "./pages/WorkflowsHub";
+import MarketingHub from "./pages/MarketingHub";
+import MarketingCampaignDetail from "./pages/MarketingCampaignDetail";
+import MarketingSettings from "./pages/MarketingSettings";
+import AiAssistantHub from "./pages/AiAssistantHub";
+import AiAssistantSettings from "./pages/AiAssistantSettings";
+import MarketplaceHub from "./pages/MarketplaceHub";
+import MarketplaceSettings from "./pages/MarketplaceSettings";
 import WorkflowForm from "./pages/WorkflowForm";
 import WorkflowDetail from "./pages/WorkflowDetail";
 import WorkflowRuns from "./pages/WorkflowRuns";
@@ -2093,6 +2100,62 @@ function App() {
           element={
             <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="workflows.view">
               <WorkflowsHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing/settings"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="marketing.manage_settings">
+              <MarketingSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing/campaigns/:id"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="marketing.view">
+              <MarketingCampaignDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketing"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="marketing.view">
+              <MarketingHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-assistant/settings"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="ai_assistant.manage_settings">
+              <AiAssistantSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/ai-assistant"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="ai_assistant.view">
+              <AiAssistantHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketplace/settings"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="marketplace.manage_settings">
+              <MarketplaceSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/marketplace"
+          element={
+            <ProtectedRoute allowedRoles={STAFF_ROLES} requiredPermission="marketplace.view">
+              <MarketplaceHub />
             </ProtectedRoute>
           }
         />

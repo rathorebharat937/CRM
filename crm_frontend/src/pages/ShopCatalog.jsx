@@ -22,6 +22,13 @@ function ShopCatalog() {
       .catch((err) => setError(err.message));
   }, [companySlug, q, category]);
 
+  const setCategory = (nextCategory) => {
+    const params = {};
+    if (q) params.q = q;
+    if (nextCategory) params.category = nextCategory;
+    setSearchParams(params);
+  };
+
   return (
     <ShopShell companySlug={companySlug}>
       <div className="crm-shop-content">
@@ -33,44 +40,67 @@ function ShopCatalog() {
             setSearchParams({ q: form.q.value, ...(category ? { category } : {}) });
           }}
         >
-          <input name="q" defaultValue={q} placeholder="Search products…" className="crm-input" />
+          <input
+            name="q"
+            defaultValue={q}
+            placeholder="Search products…"
+            className="crm-input"
+            aria-label="Search products"
+          />
           <button type="submit" className="crm-btn crm-btn-sm">Search</button>
         </form>
+
         {data?.categories?.length > 0 && (
-          <div className="crm-shop-categories">
-            <button type="button" className={`crm-btn crm-btn-sm ${!category ? "crm-btn-inline" : "crm-btn-outline"}`} onClick={() => setSearchParams(q ? { q } : {})}>All</button>
+          <div className="crm-shop-categories" role="tablist" aria-label="Product categories">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={!category}
+              className={`crm-btn crm-btn-sm ${!category ? "crm-btn-inline" : "crm-btn-outline"}`}
+              onClick={() => setCategory("")}
+            >
+              All
+            </button>
             {data.categories.map((cat) => (
               <button
                 key={cat}
                 type="button"
+                role="tab"
+                aria-selected={category === cat}
                 className={`crm-btn crm-btn-sm ${category === cat ? "crm-btn-inline" : "crm-btn-outline"}`}
-                onClick={() => setSearchParams({ ...(q ? { q } : {}), category: cat })}
+                onClick={() => setCategory(cat)}
               >
                 {cat}
               </button>
             ))}
           </div>
         )}
+
         {error && <p className="crm-error">{error}</p>}
-        {!data && !error && <p>Loading products…</p>}
-        {data?.items?.length === 0 && <p className="crm-muted">No products available.</p>}
+        {!data && !error && <p className="crm-shop-status">Loading products…</p>}
+        {data?.items?.length === 0 && <p className="crm-shop-status crm-muted">No products available.</p>}
+
         <div className="crm-shop-grid">
           {data?.items?.map((product) => (
             <Link key={product.id} to={`/s/${companySlug}/shop/${product.slug}`} className="crm-shop-card">
-              {product.image_url ? (
-                <img src={product.image_url} alt="" className="crm-shop-card-image" />
-              ) : (
-                <div className="crm-shop-card-placeholder" />
-              )}
-              <h3>{product.name}</h3>
-              {product.category && <p className="crm-muted">{product.category}</p>}
-              <p className="crm-shop-price">
-                {formatINR(product.price)}
-                {product.compare_at_price && product.compare_at_price > product.price && (
-                  <span className="crm-shop-compare">{formatINR(product.compare_at_price)}</span>
+              <div className="crm-shop-card-media">
+                {product.image_url ? (
+                  <img src={product.image_url} alt={product.name} className="crm-shop-card-image" loading="lazy" />
+                ) : (
+                  <div className="crm-shop-card-placeholder" aria-hidden="true" />
                 )}
-              </p>
-              {!product.in_stock && <span className="crm-badge crm-badge-warning">Out of stock</span>}
+              </div>
+              <div className="crm-shop-card-body">
+                <h3 className="crm-shop-card-title">{product.name}</h3>
+                {product.category && <p className="crm-shop-card-category">{product.category}</p>}
+                <p className="crm-shop-price">
+                  {formatINR(product.price)}
+                  {product.compare_at_price && product.compare_at_price > product.price && (
+                    <span className="crm-shop-compare">{formatINR(product.compare_at_price)}</span>
+                  )}
+                </p>
+                {!product.in_stock && <span className="crm-shop-badge crm-shop-badge-warn">Out of stock</span>}
+              </div>
             </Link>
           ))}
         </div>

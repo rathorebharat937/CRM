@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
+import { ActionStatusMessages, ModuleNav, ModulePageHeader } from "../components/ModulePage";
 import { apiFetch } from "../utils/api";
 import { formatINR, getPosSessionId, setPosSessionId } from "../utils/pos";
 import { hasPermission } from "../utils/permissions";
@@ -52,21 +53,21 @@ function PosDashboard() {
   return (
     <DashboardLayout title="Point of Sale" roleLabel={role}>
       <div className="crm-panel">
-        <div className="crm-detail-header">
-          <p className="crm-muted">Counter billing and cash sessions</p>
-          <div className="crm-inline-actions">
-            {hasPermission("pos.bill") && (
-              <>
-                <button type="button" className="crm-btn crm-btn-sm crm-btn-inline" onClick={resume}>Resume terminal</button>
-                <button type="button" className="crm-btn crm-btn-sm crm-btn-outline" onClick={openSession} disabled={opening || !registerId}>
-                  {opening ? "Opening…" : "Open session"}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
+        <ModulePageHeader subtitle="Counter billing and cash sessions">
+          {hasPermission("pos.manage_settings") && (
+            <Link to="/pos/settings" className="crm-btn crm-btn-sm crm-btn-outline">Settings</Link>
+          )}
+          {hasPermission("pos.bill") && (
+            <>
+              <button type="button" className="crm-btn crm-btn-sm crm-btn-outline" onClick={resume}>Resume terminal</button>
+              <button type="button" className="crm-btn crm-btn-sm" onClick={openSession} disabled={opening || !registerId}>
+                {opening ? "Opening…" : "Open session"}
+              </button>
+            </>
+          )}
+        </ModulePageHeader>
         {hasPermission("pos.bill") && registers.length > 0 && (
-          <div className="crm-form crm-mt" style={{ maxWidth: 400 }}>
+          <div className="crm-form crm-form-narrow crm-mt">
             <div className="crm-form-field">
               <label>Register</label>
               <select value={registerId} onChange={(e) => setRegisterId(e.target.value)}>
@@ -81,7 +82,7 @@ function PosDashboard() {
             </div>
           </div>
         )}
-        {error && <p className="crm-error crm-mt">{error}</p>}
+        <ActionStatusMessages error={error} />
         {data && (
           <>
             <div className="crm-stats-grid crm-mt">
@@ -89,12 +90,11 @@ function PosDashboard() {
               <div className="crm-stat-card"><span className="crm-stat-value">{data.bills_today}</span><span className="crm-stat-label">Bills today</span></div>
               <div className="crm-stat-card"><span className="crm-stat-value">{data.open_sessions}</span><span className="crm-stat-label">Open sessions</span></div>
             </div>
-            <div className="crm-inline-actions crm-mt">
+            <ModuleNav>
               <Link to="/pos/bills" className="crm-btn crm-btn-sm crm-btn-outline">Bills</Link>
               <Link to="/pos/sessions" className="crm-btn crm-btn-sm crm-btn-outline">Sessions</Link>
               {hasPermission("pos.manage_catalog") && <Link to="/pos/catalog" className="crm-btn crm-btn-sm crm-btn-outline">Catalog</Link>}
-              {hasPermission("pos.manage_settings") && <Link to="/pos/settings" className="crm-btn crm-btn-sm crm-btn-outline">Settings</Link>}
-            </div>
+            </ModuleNav>
           </>
         )}
       </div>

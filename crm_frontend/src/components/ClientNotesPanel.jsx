@@ -106,13 +106,13 @@ function ClientNotesPanel({
     : `/client-notes?${query}`;
 
   return (
-    <section className="crm-client-notes-panel">
+    <section className="crm-entity-section crm-client-notes-panel">
       <div className="crm-detail-header">
         <h3>{title}</h3>
-        <Link to={timelineLink} className="crm-link">View all</Link>
+        <Link to={timelineLink} className="crm-nav-link">View all</Link>
       </div>
 
-      {contactName && <p className="crm-muted">{contactName}</p>}
+      {contactName && <p className="crm-text-secondary">{contactName}</p>}
       {message && <p className="crm-success crm-mt">{message}</p>}
       {error && <p className="crm-error crm-mt">{error}</p>}
 

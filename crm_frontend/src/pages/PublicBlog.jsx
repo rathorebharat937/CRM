@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { PublicSiteShell } from "../components/WebsiteSectionRenderer";
-import { API_URL } from "../utils/api";
+import { publicApiPath } from "../utils/api";
 
 async function publicFetch(path) {
-  const response = await fetch(`${API_URL}${path}`);
+  const response = await fetch(publicApiPath(path));
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.detail || "Not found");
   return data;

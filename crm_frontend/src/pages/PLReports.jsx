@@ -337,8 +337,8 @@ function PLReports() {
                   {(data.statement || []).map((line) => (
                     <tr key={line.key} className={line.is_total ? "crm-pl-statement-total" : ""}>
                       <td>{line.is_total ? <strong>{line.label}</strong> : line.label}</td>
-                      <td className="crm-num">{formatCurrency(line.current, currency)}</td>
-                      <td className="crm-num">{formatCurrency(line.previous, currency)}</td>
+                      <td className={`crm-num ${line.is_total ? profitClass(line.current) : ""}`}>{formatCurrency(line.current, currency)}</td>
+                      <td className={`crm-num ${line.is_total ? profitClass(line.previous) : ""}`}>{formatCurrency(line.previous, currency)}</td>
                       <td className="crm-num">
                         <ChangeText amount={line.current - line.previous} pct={line.previous ? ((line.current - line.previous) / Math.abs(line.previous)) * 100 : null} />
                       </td>

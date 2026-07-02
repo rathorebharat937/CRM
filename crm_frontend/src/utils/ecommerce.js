@@ -1,4 +1,4 @@
-import { API_URL } from "./api";
+import { fetchWithNetworkHint, parseApiJson, publicApiPath } from "./api";
 
 export const ORDER_STATUS_LABELS = {
   pending_payment: "Pending payment",
@@ -62,10 +62,19 @@ export async function publicShopFetch(slug, path, options = {}) {
   const token = getStoreCustomerToken(slug);
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const response = await fetch(`${API_URL}/public/${slug}${path}`, { ...options, headers });
-  const data = await response.json().catch(() => ({}));
+  const response = await fetchWithNetworkHint(publicApiPath(`/public/${slug}${path}`), { ...options, headers });
+  const data = await parseApiJson(response);
   if (!response.ok) {
-    throw new Error(data.detail || "Request failed");
+    const detail = data?.detail;
+    const message = typeof detail === "string"
+      ? detail
+      : Array.isArray(detail)
+        ? detail.map((d) => d.msg || JSON.stringify(d)).join("; ")
+        : `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+  if (data === null) {
+    throw new Error("Server returned an invalid response.");
   }
   if (data.session_id) setCartSession(slug, data.session_id);
   return data;
@@ -76,13 +85,16 @@ export async function fetchShopInfo(slug) {
 }
 
 export async function fetchCompanyBranding(slug) {
-  const response = await fetch(`${API_URL}/public/${slug}`);
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.detail || "Site not found");
+  const response = await fetchWithNetworkHint(publicApiPath(`/public/${slug}`));
+  const data = await parseApiJson(response);
+  if (!response.ok) throw new Error(data?.detail || "Site not found");
+  if (!data?.company) {
+    throw new Error("Site branding data is missing from the server response.");
+  }
   return data.company;
 }
 
-export function emptyCheckoutForm() {
+export function emptyCheckoutForm(overrides = {}) {
   return {
     guest_name: "",
     guest_email: "",
@@ -91,9 +103,11 @@ export function emptyCheckoutForm() {
     shipping_address: { line1: "", line2: "", city: "", state: "", pincode: "" },
     billing_same: true,
     billing_address: { line1: "", line2: "", city: "", state: "", pincode: "" },
-    shipping_method: "standard",
-    payment_method: "cod",
+    shipping_method: "pickup",
+    payment_method: "bank_transfer",
+    payment_terms: "due_on_receipt",
     customer_note: "",
+    ...overrides,
   };
 }
 

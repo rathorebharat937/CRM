@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
 import { apiFetch } from "../utils/api";
+import { loadSettings, saveSettings, SettingsStatusMessages } from "../utils/settingsPage";
 
 function PosSettings() {
   const role = localStorage.getItem("role") || "Staff";
@@ -13,28 +14,28 @@ function PosSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch("/pos/settings").then(setForm).catch((err) => setError(err.message));
+    loadSettings("/pos/settings", setForm, setError);
   }, []);
 
-  const save = async (e) => {
+  const save = (e) => {
     e.preventDefault();
-    setSaved(false);
-    try {
-      const data = await apiFetch("/pos/settings", { method: "PUT", body: JSON.stringify(form) });
-      setForm(data);
-      setSaved(true);
-    } catch (err) {
-      setError(err.message);
-    }
+    saveSettings("/pos/settings", form, { setForm, setError, setSaved });
   };
 
   const addRegister = async () => {
-    await apiFetch("/pos/registers", {
-      method: "POST",
-      body: JSON.stringify({ name: regName, code: regCode }),
-    });
-    setRegName("");
-    setRegCode("");
+    try {
+      await apiFetch("/pos/registers", {
+        method: "POST",
+        body: JSON.stringify({ name: regName, code: regCode }),
+      });
+      setRegName("");
+      setRegCode("");
+      setSaved(false);
+      setError("");
+    } catch (err) {
+      setSaved(false);
+      setError(err.message);
+    }
   };
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -43,8 +44,7 @@ function PosSettings() {
     <DashboardLayout title="POS settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/pos" className="crm-muted">← Point of Sale</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         {form && (
           <form className="crm-form crm-mt" onSubmit={save}>
             <div className="crm-form-field">

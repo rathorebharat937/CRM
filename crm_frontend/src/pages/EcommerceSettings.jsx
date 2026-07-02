@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
-import { apiFetch } from "../utils/api";
+import { loadSettings, saveSettings, SettingsStatusMessages } from "../utils/settingsPage";
 
 function EcommerceSettings() {
   const role = localStorage.getItem("role") || "Staff";
@@ -11,20 +11,12 @@ function EcommerceSettings() {
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    apiFetch("/ecommerce/settings").then(setForm).catch((err) => setError(err.message));
+    loadSettings("/ecommerce/settings", setForm, setError);
   }, []);
 
-  const save = async (e) => {
+  const save = (e) => {
     e.preventDefault();
-    setError("");
-    setSaved(false);
-    try {
-      const data = await apiFetch("/ecommerce/settings", { method: "PUT", body: JSON.stringify(form) });
-      setForm(data);
-      setSaved(true);
-    } catch (err) {
-      setError(err.message);
-    }
+    saveSettings("/ecommerce/settings", form, { setForm, setError, setSaved });
   };
 
   const setField = (key, value) => setForm((f) => ({ ...f, [key]: value }));
@@ -33,8 +25,7 @@ function EcommerceSettings() {
     <DashboardLayout title="Store settings" roleLabel={role}>
       <div className="crm-panel">
         <Link to="/ecommerce" className="crm-muted">← Online Store</Link>
-        {error && <p className="crm-error crm-mt">{error}</p>}
-        {saved && <p className="crm-success crm-mt">Settings saved.</p>}
+        <SettingsStatusMessages error={error} saved={saved} />
         {form && (
           <form className="crm-form crm-mt" onSubmit={save}>
             <div className="crm-form-field">

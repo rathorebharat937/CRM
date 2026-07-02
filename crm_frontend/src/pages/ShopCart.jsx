@@ -38,48 +38,51 @@ function ShopCart() {
   };
 
   return (
-    <ShopShell companySlug={companySlug}>
+    <ShopShell companySlug={companySlug} showStoreTitle={false}>
       <div className="crm-shop-content">
-        <h2>Your cart</h2>
+        <h2 className="crm-shop-page-title">Your cart</h2>
         {error && <p className="crm-error">{error}</p>}
-        {!cart && !error && <p>Loading…</p>}
+        {!cart && !error && <p className="crm-shop-status">Loading…</p>}
         {cart?.items?.length === 0 && (
-          <div className="crm-mt">
+          <div className="crm-shop-empty">
             <p className="crm-muted">Your cart is empty.</p>
             <Link to={`/s/${companySlug}/shop`} className="crm-btn crm-btn-sm crm-mt">Continue shopping</Link>
           </div>
         )}
         {cart?.items?.length > 0 && (
           <>
-            <table className="crm-table crm-mt">
-              <thead>
-                <tr><th>Product</th><th>Qty</th><th>Price</th><th></th></tr>
-              </thead>
-              <tbody>
-                {cart.items.map((item) => (
-                  <tr key={item.id}>
-                    <td>
-                      <Link to={`/s/${companySlug}/shop/${item.product_slug}`}>{item.product_name}</Link>
-                    </td>
-                    <td>
-                      <input
-                        type="number"
-                        min={1}
-                        max={99}
-                        value={item.quantity}
-                        onChange={(e) => updateQty(item.id, Number(e.target.value))}
-                        className="crm-input crm-input-sm"
-                      />
-                    </td>
-                    <td>{formatINR(item.line_total)}</td>
-                    <td><button type="button" className="crm-btn crm-btn-sm crm-btn-outline" onClick={() => removeItem(item.id)}>Remove</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="crm-shop-cart-list crm-mt">
+              {cart.items.map((item) => (
+                <article key={item.id} className="crm-shop-cart-item">
+                  <div className="crm-shop-cart-item-main">
+                    <Link to={`/s/${companySlug}/shop/${item.product_slug}`} className="crm-shop-cart-item-name">
+                      {item.product_name}
+                    </Link>
+                    <p className="crm-shop-cart-item-price">{formatINR(item.line_total)}</p>
+                  </div>
+                  <div className="crm-shop-cart-item-actions">
+                    <label className="crm-shop-qty-label" htmlFor={`qty-${item.id}`}>Qty</label>
+                    <input
+                      id={`qty-${item.id}`}
+                      type="number"
+                      min={1}
+                      max={99}
+                      value={item.quantity}
+                      onChange={(e) => updateQty(item.id, Number(e.target.value))}
+                      className="crm-input crm-input-sm"
+                    />
+                    <button type="button" className="crm-btn crm-btn-sm crm-btn-outline" onClick={() => removeItem(item.id)}>
+                      Remove
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
             <div className="crm-shop-summary crm-mt">
               <strong>Subtotal: {formatINR(cart.subtotal)}</strong>
-              <button type="button" className="crm-btn" onClick={() => navigate(`/s/${companySlug}/checkout`)}>Checkout</button>
+              <button type="button" className="crm-btn crm-shop-checkout-btn" onClick={() => navigate(`/s/${companySlug}/checkout`)}>
+                Checkout
+              </button>
             </div>
           </>
         )}

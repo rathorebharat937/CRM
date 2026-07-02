@@ -107,38 +107,72 @@ function LeadDetail() {
         {message && <p className="crm-success crm-mt">{message}</p>}
         {error && <p className="crm-error crm-mt">{error}</p>}
 
-        <div className="crm-contact-meta crm-mt">
-          <p>
-            <span className={`crm-badge crm-lead-${lead.status}`}>
-              {STATUS_LABELS[lead.status] || lead.status}
-            </span>
-            {lead.csv_status && (
-              <span className="crm-muted"> · Original: {lead.csv_status}</span>
-            )}
-          </p>
-          <p><strong>Phone:</strong> {lead.phone || "—"}</p>
-          <p><strong>Email:</strong> {lead.email || "—"}</p>
-          <p><strong>Organization:</strong> {lead.organization_name || "—"}</p>
-          <p><strong>City:</strong> {lead.city || "—"}</p>
-          <p><strong>Source:</strong> {lead.source}</p>
-          <p><strong>Assigned to:</strong> {lead.assigned_to_name || "Unassigned"}</p>
-          {lead.requirement && <p><strong>Requirement:</strong> {lead.requirement}</p>}
-          {lead.exact_requirement && <p><strong>Exact requirement:</strong> {lead.exact_requirement}</p>}
-          {lead.registered_at && (
-            <p><strong>Registered:</strong> {new Date(lead.registered_at).toLocaleDateString()}</p>
-          )}
-          {lead.contact_id && (
-            <p>
-              <strong>Contact:</strong>{" "}
-              <Link to={`/contacts/${lead.contact_id}`} className="crm-nav-link">
-                View client #{lead.contact_id}
-              </Link>
-            </p>
+        <div className="crm-entity-status">
+          <span className={`crm-badge crm-lead-${lead.status}`}>
+            {STATUS_LABELS[lead.status] || lead.status}
+          </span>
+          {lead.csv_status && (
+            <span className="crm-meta-sub">Original: {lead.csv_status}</span>
           )}
         </div>
 
+        <dl className="crm-meta-grid">
+          <div className="crm-meta-item">
+            <dt>Phone</dt>
+            <dd>{lead.phone || "—"}</dd>
+          </div>
+          <div className="crm-meta-item">
+            <dt>Email</dt>
+            <dd>{lead.email || "—"}</dd>
+          </div>
+          <div className="crm-meta-item">
+            <dt>Organization</dt>
+            <dd>{lead.organization_name || "—"}</dd>
+          </div>
+          <div className="crm-meta-item">
+            <dt>City</dt>
+            <dd>{lead.city || "—"}</dd>
+          </div>
+          <div className="crm-meta-item">
+            <dt>Source</dt>
+            <dd>{lead.source}</dd>
+          </div>
+          <div className="crm-meta-item">
+            <dt>Assigned to</dt>
+            <dd>{lead.assigned_to_name || "Unassigned"}</dd>
+          </div>
+          {lead.requirement && (
+            <div className="crm-meta-item">
+              <dt>Requirement</dt>
+              <dd>{lead.requirement}</dd>
+            </div>
+          )}
+          {lead.exact_requirement && (
+            <div className="crm-meta-item">
+              <dt>Exact requirement</dt>
+              <dd>{lead.exact_requirement}</dd>
+            </div>
+          )}
+          {lead.registered_at && (
+            <div className="crm-meta-item">
+              <dt>Registered</dt>
+              <dd>{new Date(lead.registered_at).toLocaleDateString()}</dd>
+            </div>
+          )}
+          {lead.contact_id && (
+            <div className="crm-meta-item">
+              <dt>Contact</dt>
+              <dd>
+                <Link to={`/contacts/${lead.contact_id}`} className="crm-nav-link">
+                  View client #{lead.contact_id}
+                </Link>
+              </dd>
+            </div>
+          )}
+        </dl>
+
         {lead.notes && (
-          <div className="crm-mt-lg">
+          <div className="crm-entity-section">
             <h3>Legacy notes</h3>
             <pre className="crm-pre">{lead.notes}</pre>
           </div>
@@ -149,13 +183,11 @@ function LeadDetail() {
         )}
 
         {hasPermission("client_notes.view") && (
-          <div className="crm-mt-lg">
-            <ClientNotesPanel
-              leadId={Number(id)}
-              contactName={lead.name}
-              compact
-            />
-          </div>
+          <ClientNotesPanel
+            leadId={Number(id)}
+            contactName={lead.name}
+            compact
+          />
         )}
 
         {(hasPermission("files.view") || hasPermission("files.view_own")) && (

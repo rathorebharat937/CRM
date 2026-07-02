@@ -29,7 +29,7 @@ function NotificationBell() {
   const loadList = useCallback(() => {
     if (!hasPermission("notifications.view")) return;
     setError("");
-    apiFetch("/notifications?limit=20&unread_only=true")
+    apiFetch("/notifications?limit=50&unread_only=true")
       .then((d) => {
         setItems(d.items || []);
         setUnread(d.unread_count || 0);
@@ -167,7 +167,7 @@ function NotificationBell() {
                   </button>
                   {isExpanded && (
                     <div className="crm-inline-actions crm-mt-sm">
-                      {n.link_path ? (
+                      {n.link_path && (
                         <button
                           type="button"
                           className="crm-btn crm-btn-sm crm-btn-primary"
@@ -175,15 +175,14 @@ function NotificationBell() {
                         >
                           Open
                         </button>
-                      ) : (
-                        <button
-                          type="button"
-                          className="crm-btn crm-btn-sm crm-btn-outline"
-                          onClick={() => dismiss(n.id)}
-                        >
-                          Done
-                        </button>
                       )}
+                      <button
+                        type="button"
+                        className="crm-btn crm-btn-sm crm-btn-outline"
+                        onClick={() => dismiss(n.id)}
+                      >
+                        {n.link_path ? "Dismiss" : "Done"}
+                      </button>
                     </div>
                   )}
                 </div>

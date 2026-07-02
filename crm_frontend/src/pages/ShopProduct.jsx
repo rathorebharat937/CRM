@@ -35,33 +35,49 @@ function ShopProduct() {
   };
 
   return (
-    <ShopShell companySlug={companySlug}>
+    <ShopShell companySlug={companySlug} showStoreTitle={false}>
       <div className="crm-shop-content">
-        <Link to={`/s/${companySlug}/shop`} className="crm-muted">← Back to shop</Link>
+        <Link to={`/s/${companySlug}/shop`} className="crm-shop-back">← Back to shop</Link>
         {error && <p className="crm-error crm-mt">{error}</p>}
-        {!product && !error && <p className="crm-mt">Loading…</p>}
+        {!product && !error && <p className="crm-shop-status crm-mt">Loading…</p>}
         {product && (
-          <div className="crm-shop-product-detail crm-mt">
-            {product.image_url ? (
-              <img src={product.image_url} alt="" className="crm-shop-product-image" />
-            ) : (
-              <div className="crm-shop-card-placeholder crm-shop-product-image" />
-            )}
-            <div>
-              <h2>{product.name}</h2>
-              {product.category && <p className="crm-muted">{product.category}</p>}
-              <p className="crm-shop-price crm-mt">{formatINR(product.price)} <span className="crm-muted">+ GST ({product.gst_rate}%)</span></p>
-              {product.description && <p className="crm-mt">{product.description}</p>}
+          <article className="crm-shop-product-detail crm-mt">
+            <div className="crm-shop-product-media">
+              {product.image_url ? (
+                <img src={product.image_url} alt={product.name} className="crm-shop-product-image" loading="lazy" />
+              ) : (
+                <div className="crm-shop-card-placeholder crm-shop-product-image" aria-hidden="true" />
+              )}
+            </div>
+            <div className="crm-shop-product-info">
+              <h2 className="crm-shop-product-title">{product.name}</h2>
+              {product.category && <p className="crm-shop-card-category">{product.category}</p>}
+              <p className="crm-shop-price crm-mt">
+                {formatINR(product.price)}
+                <span className="crm-shop-gst-note"> + GST ({product.gst_rate}%)</span>
+              </p>
+              {product.description && <p className="crm-shop-product-desc">{product.description}</p>}
               {!product.in_stock ? (
-                <p className="crm-badge crm-badge-warning crm-mt">Out of stock</p>
+                <p className="crm-shop-badge crm-shop-badge-warn crm-mt">Out of stock</p>
               ) : (
                 <div className="crm-shop-add-row crm-mt">
-                  <input type="number" min={1} max={99} value={qty} onChange={(e) => setQty(Number(e.target.value))} className="crm-input crm-input-sm" />
-                  <button type="button" className="crm-btn" onClick={addToCart} disabled={adding}>{adding ? "Adding…" : "Add to cart"}</button>
+                  <label className="crm-shop-qty-label" htmlFor="shop-qty">Qty</label>
+                  <input
+                    id="shop-qty"
+                    type="number"
+                    min={1}
+                    max={99}
+                    value={qty}
+                    onChange={(e) => setQty(Number(e.target.value))}
+                    className="crm-input crm-input-sm"
+                  />
+                  <button type="button" className="crm-btn crm-shop-add-btn" onClick={addToCart} disabled={adding}>
+                    {adding ? "Adding…" : "Add to cart"}
+                  </button>
                 </div>
               )}
             </div>
-          </div>
+          </article>
         )}
       </div>
     </ShopShell>
