@@ -4,7 +4,7 @@ India-first business operating software for SMEs, service businesses, NGOs, cons
 
 **Stack:** FastAPI + SQLAlchemy + PostgreSQL + Alembic (backend) · React (Create React App) frontend
 
-**Current build:** Level 1 complete. Level 2 ~85%. Level 3 accounting/inventory done. Level 4 HR/operations largely done. App-launcher UI and in-app notifications live. **Multi-tenant SaaS** is the approved next phase — see [docs/MULTI_TENANT_ROADMAP.md](docs/MULTI_TENANT_ROADMAP.md).
+**Current build:** Level 1 complete. Level 2 ~85%. Level 3 accounting/inventory done. Level 4 HR/operations largely done. **Level 5** — 11 of 14 platform modules shipped (see [docs/LEVEL_5_STATUS.md](docs/LEVEL_5_STATUS.md)). App-launcher UI and in-app notifications live. **Multi-tenant SaaS** is the approved next phase — see [docs/MULTI_TENANT_ROADMAP.md](docs/MULTI_TENANT_ROADMAP.md).
 
 ---
 
@@ -16,7 +16,8 @@ India-first business operating software for SMEs, service businesses, NGOs, cons
 | **Level 2** | **~85%** | Leads → deal → quote → order → invoice → payments, reports, follow-ups |
 | **Level 3** | **~90%** | Expenses, POs, vendor bills, inventory, warehouses, GST/tax, ledgers, P&L |
 | **Level 4** | **~80%** | Projects, timesheets, leave, employees, attendance, recruitment, payroll, chat, approvals |
-| **UI / UX** | **Recent** | App-launcher home, India-first landing, GST invoice/quote layouts, alert centre |
+| **Level 5** | **100% MVP** | All 14 modules: website through API marketplace (Phase 1 scope) |
+| **UI / UX** | **Recent** | App-launcher home, Level 5 category grid, India-first landing, GST invoice/quote layouts, alert centre |
 | **Multi-tenant** | **Planned** | Roadmap written; single-company-per-DB today |
 
 ---
@@ -24,7 +25,7 @@ India-first business operating software for SMEs, service businesses, NGOs, cons
 ## Recent UI & product work
 
 - **Landing page** (`/`) — India-first positioning, module showcase, workspace sign-in (Admin / Sales / Accountant / etc.)
-- **App launcher** — Role dashboards show an Odoo-style app grid instead of a long header nav strip
+- **App launcher** — Role dashboards show an Odoo-style app grid; Level 5 modules grouped under **Platform & Growth**
 - **App shell** — Logo → Apps home, breadcrumb on inner pages, profile + Alerts + logout
 - **GST documents** — Service invoice & quotation layouts aligned to BlackPapers PDFs
 - **Notifications** — In-app alert bell, Admin “Send alert” by role, demo seeds (`seed_demo_level1.py`)
@@ -104,6 +105,31 @@ Lead → Deal → Quotation → Sales Order → Invoice → Payments
 | 9 | Approvals Hub | **Done** | Cross-module pending actions |
 | 10 | Document Management | **Done** | `/documents` |
 | 11 | Internal Chat | **Done** | Team messages |
+
+---
+
+## Level 5 — Platform & Growth
+
+Full matrix: **[docs/LEVEL_5_STATUS.md](docs/LEVEL_5_STATUS.md)**
+
+| # | Module | Status |
+|---|--------|--------|
+| 1 | Marketing Automation | **Done** — `/marketing` (drip, enrollments, reminders) |
+| 2 | Website Builder | **Done** — `/website`, public `/s/:slug` |
+| 3 | eCommerce | **Done** — `/ecommerce`, public shop |
+| 4 | POS | **Done** — `/pos` |
+| 5 | Manufacturing / MRP | **Done** — `/manufacturing` |
+| 6 | Quality Control | **Done** — `/quality` |
+| 7 | Maintenance | **Done** — `/maintenance` |
+| 8 | Field Service | **Done** — `/field-service` |
+| 9 | Subscription Management | **Done** — `/subscriptions` |
+| 10 | Rental Management | **Done** — `/rental` |
+| 11 | AI Reports | **Done** — `/ai-reports` |
+| 12 | AI Assistant | **Done** — `/ai-assistant` (rule-based chat) |
+| 13 | Workflow Builder | **Done** — `/workflows` |
+| 14 | API & App Marketplace | **Done** — `/marketplace` (catalog, keys, webhooks) |
+
+After pulling Level 5 code: `alembic upgrade head`, `python seed_permissions.py`, demo seeds for new modules, then **log out and log in**.
 
 ---
 
@@ -218,6 +244,15 @@ python seed_clients.py
 python seed_master_services.py
 python seed_leads.py
 ```
+
+**Level 5 platform modules** (website, POS, subscriptions, manufacturing, etc.):
+
+```powershell
+python seed_enable_level5.py
+python seed_demo_level5.py
+```
+
+Or seed individually — see [docs/LEVEL_5_STATUS.md](docs/LEVEL_5_STATUS.md).
 
 **Optional demo modules:**
 
