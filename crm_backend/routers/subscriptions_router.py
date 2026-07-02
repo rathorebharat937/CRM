@@ -82,6 +82,7 @@ def _get_settings(db: Session, company: Company) -> SubscriptionSettings:
         return settings
     settings = SubscriptionSettings(
         company_id=company.id,
+        is_enabled=True,
         default_reminder_days=DEFAULT_SLA_REMINDER_DAYS,
         notify_roles_json=DEFAULT_NOTIFY_ROLES,
         subscription_prefix=DEFAULT_SUBSCRIPTION_PREFIX,
@@ -387,7 +388,6 @@ def dashboard(
 ):
     company = _get_company(db)
     settings = _get_settings(db, company)
-    _require_enabled(settings)
 
     today = date.today()
     sync_past_due_status(db, company.id, settings)

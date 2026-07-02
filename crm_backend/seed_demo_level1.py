@@ -36,6 +36,10 @@ def _notifications_for_role(role: str) -> list[tuple[str, str, str, str]]:
     return DEMO_NOTIFICATIONS_BY_ROLE.get(role, DEFAULT_DEMO_NOTIFICATIONS)
 
 
+def _demo_titles_for_role(role: str) -> set[str]:
+    return {title for _, title, _, _ in _notifications_for_role(role)}
+
+
 def seed(reset: bool = False) -> None:
     db = SessionLocal()
     try:
@@ -61,14 +65,27 @@ def seed(reset: bool = False) -> None:
         for user in staff:
             if user.company_id is None:
                 user.company_id = company.id
-            existing = (
-                db.query(Notification)
-                .filter(Notification.user_id == user.id, Notification.category == "system")
-                .count()
-            )
-            if existing and not reset:
-                continue
-            for category, title, message, link in _notifications_for_role(user.role):
+
+            demo_set = _notifications_for_role(user.role)
+            demo_titles = _demo_titles_for_role(user.role)
+
+            if not reset:
+                existing_titles = {
+                    row[0]
+                    for row in db.query(Notification.title)
+                    .filter(
+                        Notification.user_id == user.id,
+                        Notification.title.in_(demo_titles),
+                    )
+                    .all()
+                }
+                demo_set = [
+                    item for item in demo_set if item[1] not in existing_titles
+                ]
+                if not demo_set:
+                    continue
+
+            for category, title, message, link in demo_set:
                 db.add(
                     Notification(
                         company_id=company.id,
@@ -91,6 +108,10 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--reset", action="store_true")
+    parser.add_argument(
+        "--reset",
+        action="store_true",
+        help="Delete all company notifications, then re-seed demo alerts",
+    )
     args = parser.parse_args()
     seed(reset=args.reset)

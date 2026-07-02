@@ -85,7 +85,7 @@ def dashboard_kpis(
         .scalar()
     )
     revenue_collected = (
-        db.query(func.coalesce(func.sum(Invoice.paid_amount), 0))
+        db.query(func.coalesce(func.sum(Invoice.amount_paid), 0))
         .filter(Invoice.company_id == company.id)
         .scalar()
     )

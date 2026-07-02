@@ -94,6 +94,7 @@ def _get_settings(db: Session, company: Company) -> ManufacturingSettings:
         return settings
     settings = ManufacturingSettings(
         company_id=company.id,
+        is_enabled=True,
         default_checklist_json=DEFAULT_CHECKLIST,
     )
     db.add(settings)

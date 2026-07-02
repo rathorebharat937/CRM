@@ -381,6 +381,7 @@ def send_rental_reminders(db: Session, company: Company, settings: RentalSetting
                         title=title,
                         message=message,
                         link_path=link,
+                        dedupe_per_day=True,
                     )
                 sent += 1
 
@@ -400,6 +401,7 @@ def send_rental_reminders(db: Session, company: Company, settings: RentalSetting
                     title=title,
                     message=message,
                     link_path=link,
+                    dedupe_per_day=True,
                 )
             sent += 1
 
@@ -415,6 +417,7 @@ def send_rental_reminders(db: Session, company: Company, settings: RentalSetting
                     title=title,
                     message=message,
                     link_path=link,
+                    dedupe_per_day=True,
                 )
             sent += 1
 

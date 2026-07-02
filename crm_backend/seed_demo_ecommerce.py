@@ -6,7 +6,7 @@ import argparse
 from decimal import Decimal
 
 from database import SessionLocal
-from ecommerce_config import normalize_slug, product_online_slug
+from ecommerce_config import normalize_slug, product_online_slug, product_display_image_url
 from models import Company, Product, StoreSettings, WebsiteSettings
 
 
@@ -33,10 +33,15 @@ def seed_demo_ecommerce(reset: bool = False) -> None:
         settings.is_enabled = True
         settings.store_name = company.display_name
         settings.guest_checkout_allowed = True
-        settings.flat_shipping_rate = Decimal("99")
-        settings.free_shipping_above = Decimal("2000")
+        settings.flat_shipping_rate = Decimal("0")
+        settings.free_shipping_above = None
+        settings.default_payment_method = "bank_transfer"
         settings.auto_create_sales_order = True
-        settings.bank_details = "HDFC Bank · A/c 1234567890 · IFSC HDFC0001234 · UPI: blackpapers@upi"
+        settings.bank_details = (
+            "Bank: Kotak Mahindra Bank\n"
+            "A/c: BlackPapers Sarthies Private Limited · 1910202300\n"
+            "IFSC: KKBK0004599 · UPI: blackpapers@kotak"
+        )
 
         products = (
             db.query(Product)
@@ -56,6 +61,8 @@ def seed_demo_ecommerce(reset: bool = False) -> None:
                 product.online_slug = product_online_slug(product)
             if not product.online_description:
                 product.online_description = product.description or f"Order {product.name} online."
+            if not product.online_image_url:
+                product.online_image_url = product_display_image_url(product)
             enabled += 1
 
         db.commit()

@@ -96,6 +96,7 @@ def _get_settings(db: Session, company: Company) -> RentalSettings:
         return settings
     settings = RentalSettings(
         company_id=company.id,
+        is_enabled=True,
         contract_prefix=DEFAULT_CONTRACT_PREFIX,
         default_rate_basis=DEFAULT_RATE_BASIS,
         default_deposit_percent=DEFAULT_DEPOSIT_PERCENT,

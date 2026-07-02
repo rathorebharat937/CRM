@@ -559,6 +559,12 @@ def run_insight_generation(
 
 def aggregate_watch_from_run(run: AiInsightRun) -> list[dict]:
     items: list[dict] = []
+    seen: set[str] = set()
     for section in run.sections or []:
-        items.extend(section.watch_items_json or [])
+        for w in section.watch_items_json or []:
+            key = f"{w.get('severity', '')}|{w.get('text', '')}|{w.get('link_path', '')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(w)
     return rank_watch_items(items)[:10]

@@ -26,9 +26,9 @@ def seed_demo_subscriptions(reset: bool = False) -> None:
         settings.auto_invoice_mode = "draft"
         settings.notify_roles_json = ["Admin", "Manager", "Accountant"]
 
-        contact = db.query(Contact).filter(Contact.company_id == company.id).first()
-        if not contact:
-            print("No contact found. Run seed data first.")
+        contacts = db.query(Contact).filter(Contact.company_id == company.id).limit(3).all()
+        if not contacts:
+            print("No contact found. Run seed_clients.py first.")
             return
 
         plan = (
@@ -74,32 +74,40 @@ def seed_demo_subscriptions(reset: bool = False) -> None:
             db.add(monthly)
             db.flush()
 
-        exists = (
-            db.query(CustomerSubscription.id)
-            .filter(
-                CustomerSubscription.company_id == company.id,
-                CustomerSubscription.subscription_number == "SUB-DEMO-001",
+        demo_subs = [
+            ("SUB-DEMO-001", contacts[0], monthly, date.today() - timedelta(days=30), "active"),
+            ("SUB-DEMO-002", contacts[1] if len(contacts) > 1 else contacts[0], plan, date.today() - timedelta(days=180), "active"),
+        ]
+        created = 0
+        for number, contact, chosen_plan, start, status in demo_subs:
+            exists = (
+                db.query(CustomerSubscription.id)
+                .filter(
+                    CustomerSubscription.company_id == company.id,
+                    CustomerSubscription.subscription_number == number,
+                )
+                .first()
             )
-            .first()
-        )
-        if not exists:
-            start = date.today() - timedelta(days=30)
+            if exists:
+                continue
             sub = CustomerSubscription(
                 company_id=company.id,
-                subscription_number="SUB-DEMO-001",
+                subscription_number=number,
                 contact_id=contact.id,
-                plan_id=monthly.id,
+                plan_id=chosen_plan.id,
                 quantity=1,
-                notes="Phase 1 subscription demo",
+                status=status,
+                notes="Level 5 subscription demo",
             )
-            initialize_subscription_dates(sub, monthly, start)
+            initialize_subscription_dates(sub, chosen_plan, start)
             db.add(sub)
+            created += 1
 
         db.commit()
         print("Subscriptions demo ready")
         print("  CRM: /subscriptions")
-        print(f"  Demo subscriber: {contact.name} on {monthly.name}")
         print(f"  Plans: {plan.plan_code}, {monthly.plan_code}")
+        print(f"  Demo subscribers created: {created}")
     finally:
         db.close()
 

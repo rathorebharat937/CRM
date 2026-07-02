@@ -114,8 +114,9 @@ class StoreCheckoutRequest(BaseModel):
     gstin: str | None = None
     shipping_address: StoreAddressInput
     billing_address: StoreAddressInput | None = None
-    shipping_method: str = "standard"
-    payment_method: str = "cod"
+    shipping_method: str = "digital"
+    payment_method: str = "bank_transfer"
+    payment_terms: str = "due_on_receipt"
     customer_note: str | None = None
 
 
@@ -268,3 +269,10 @@ class StoreReturnUpdateRequest(BaseModel):
 class StoreShopInfoResponse(BaseModel):
     is_enabled: bool
     store_name: str | None
+    checkout_mode: str = "services"
+    payment_methods: list[dict[str, str]]
+    payment_terms: list[dict[str, str]]
+    shipping_methods: list[dict[str, str]]
+    bank_details: str | None = None
+    default_payment_method: str = "bank_transfer"
+    default_payment_terms: str = "due_on_receipt"

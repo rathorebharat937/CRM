@@ -62,6 +62,7 @@ def _get_settings(db: Session, company: Company) -> WorkflowSettings:
     if not settings:
         settings = WorkflowSettings(
             company_id=company.id,
+            is_enabled=True,
             max_active_workflows=DEFAULT_MAX_ACTIVE,
             default_run_as_role=DEFAULT_RUN_AS_ROLE,
             rate_limit_per_hour=DEFAULT_RATE_LIMIT_PER_HOUR,

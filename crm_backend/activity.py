@@ -1,9 +1,19 @@
 from __future__ import annotations
 
-from typing import Optional
+import json
+from typing import Any, Optional
+
 from sqlalchemy.orm import Session
 
 from models import ActivityLog
+
+
+def _details_text(details: Any) -> str | None:
+    if details is None:
+        return None
+    if isinstance(details, str):
+        return details
+    return json.dumps(details, default=str)
 
 
 def log_activity(
@@ -12,7 +22,7 @@ def log_activity(
     *,
     user_id: Optional[int] = None,
     email: Optional[str] = None,
-    details: Optional[str] = None,
+    details: Any = None,
     ip_address: Optional[str] = None,
 ) -> None:
     db.add(
@@ -20,7 +30,7 @@ def log_activity(
             user_id=user_id,
             email=email,
             action=action,
-            details=details,
+            details=_details_text(details),
             ip_address=ip_address,
         )
     )

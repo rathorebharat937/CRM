@@ -49,6 +49,7 @@ def get_quality_settings(db: Session, company: Company) -> QualitySettings:
         return settings
     settings = QualitySettings(
         company_id=company.id,
+        is_enabled=True,
         notify_roles_json=DEFAULT_NOTIFY_ROLES,
         alert_repeat_fail_threshold=DEFAULT_REPEAT_FAIL_THRESHOLD,
         alert_overdue_hours=DEFAULT_OVERDUE_HOURS,

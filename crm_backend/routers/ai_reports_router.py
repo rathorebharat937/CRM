@@ -46,6 +46,7 @@ def _get_settings(db: Session, company: Company) -> AiReportSettings:
         return settings
     settings = AiReportSettings(
         company_id=company.id,
+        is_enabled=True,
         default_period=DEFAULT_PERIOD,
         default_domains_json=DEFAULT_DOMAINS,
         notify_roles_json=DEFAULT_NOTIFY_ROLES,

@@ -89,6 +89,7 @@ def _get_settings(db: Session, company: Company) -> MaintenanceSettings:
         return settings
     settings = MaintenanceSettings(
         company_id=company.id,
+        is_enabled=True,
         notify_roles_json=DEFAULT_NOTIFY_ROLES,
         default_pm_interval_days=DEFAULT_PM_INTERVAL_DAYS,
         work_order_prefix=DEFAULT_WORK_ORDER_PREFIX,

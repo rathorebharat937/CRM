@@ -96,7 +96,7 @@ def _get_settings(db: Session, company: Company) -> PosSettings:
     settings = db.query(PosSettings).filter(PosSettings.company_id == company.id).first()
     if settings:
         return settings
-    settings = PosSettings(company_id=company.id)
+    settings = PosSettings(company_id=company.id, is_enabled=True)
     db.add(settings)
     db.commit()
     db.refresh(settings)

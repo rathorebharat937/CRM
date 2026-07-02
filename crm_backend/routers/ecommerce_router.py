@@ -24,6 +24,17 @@ from ecommerce_config import (
     RETURN_STATUSES,
     SHIPPING_METHODS,
     CART_EXPIRY_DAYS,
+    DEFAULT_SERVICE_PAYMENT_METHOD,
+    DEFAULT_SERVICE_PAYMENT_TERMS,
+    DEFAULT_SERVICE_SHIPPING_METHOD,
+    SERVICE_PAYMENT_METHOD_LABELS,
+    SERVICE_PAYMENT_METHODS,
+    SERVICE_SHIPPING_METHOD_LABELS,
+    SERVICE_SHIPPING_METHODS,
+    STORE_CHECKOUT_MODE,
+    STORE_PAYMENT_TERM_LABELS,
+    STORE_PAYMENT_TERMS,
+    product_display_image_url,
     product_online_slug,
     product_unit_price,
     normalize_slug,
@@ -31,6 +42,7 @@ from ecommerce_config import (
 from ecommerce_schemas import (
     StoreAddressInput,
     StoreCartAddRequest,
+    StoreCartItemResponse,
     StoreCartResponse,
     StoreCartUpdateRequest,
     StoreCatalogItemResponse,
@@ -75,6 +87,7 @@ from models import (
     StoreSettings,
     User,
     WebsiteSettings,
+    ActivityLog,
 )
 
 router = APIRouter(prefix="/ecommerce", tags=["ecommerce"])
@@ -114,7 +127,7 @@ def _get_store_settings(db: Session, company: Company) -> StoreSettings:
     settings = db.query(StoreSettings).filter(StoreSettings.company_id == company.id).first()
     if settings:
         return settings
-    settings = StoreSettings(company_id=company.id, store_name=company.display_name)
+    settings = StoreSettings(company_id=company.id, store_name=company.display_name, is_enabled=True, default_payment_method=DEFAULT_SERVICE_PAYMENT_METHOD)
     db.add(settings)
     db.commit()
     db.refresh(settings)
@@ -230,7 +243,7 @@ def _product_public(product: Product) -> StoreProductPublic:
         price=product_unit_price(product),
         compare_at_price=float(product.compare_at_price) if product.compare_at_price is not None else None,
         category=product.category,
-        image_url=product.online_image_url,
+        image_url=product_display_image_url(product),
         gst_rate=float(product.gst_rate or 18),
         in_stock=_product_in_stock(product),
     )
@@ -277,7 +290,7 @@ def _cart_response(cart: StoreCart) -> StoreCartResponse:
                 unit_price=float(item.unit_price_snapshot),
                 gst_rate=float(item.gst_rate_snapshot),
                 line_total=line,
-                image_url=product.online_image_url if product else None,
+                image_url=product_display_image_url(product) if product else None,
             )
         )
     return StoreCartResponse(
@@ -289,7 +302,9 @@ def _cart_response(cart: StoreCart) -> StoreCartResponse:
     )
 
 
-def _compute_shipping(settings: StoreSettings, subtotal: Decimal) -> Decimal:
+def _compute_shipping(settings: StoreSettings, subtotal: Decimal, shipping_method: str | None = None) -> Decimal:
+    if shipping_method in ("digital", "pickup"):
+        return Decimal("0")
     if settings.free_shipping_above is not None and subtotal >= settings.free_shipping_above:
         return Decimal("0")
     if settings.flat_shipping_rate is not None:
@@ -297,7 +312,11 @@ def _compute_shipping(settings: StoreSettings, subtotal: Decimal) -> Decimal:
     return Decimal("0")
 
 
-def _compute_order_totals(cart: StoreCart, settings: StoreSettings) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+def _compute_order_totals(
+    cart: StoreCart,
+    settings: StoreSettings,
+    shipping_method: str | None = None,
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
     subtotal = Decimal("0")
     tax_total = Decimal("0")
     for item in cart.items:
@@ -305,9 +324,53 @@ def _compute_order_totals(cart: StoreCart, settings: StoreSettings) -> tuple[Dec
         line_tax = line_sub * Decimal(str(item.gst_rate_snapshot)) / Decimal("100")
         subtotal += line_sub
         tax_total += line_tax
-    shipping = _compute_shipping(settings, subtotal)
+    shipping = _compute_shipping(settings, subtotal, shipping_method)
     grand = subtotal + tax_total + shipping
     return subtotal, tax_total, shipping, grand
+
+
+def _shop_checkout_options(settings: StoreSettings) -> dict[str, Any]:
+    return {
+        "checkout_mode": STORE_CHECKOUT_MODE,
+        "payment_methods": [
+            {"value": key, "label": SERVICE_PAYMENT_METHOD_LABELS[key]}
+            for key in SERVICE_PAYMENT_METHODS
+        ],
+        "payment_terms": [
+            {"value": key, "label": STORE_PAYMENT_TERM_LABELS[key]}
+            for key in STORE_PAYMENT_TERMS
+        ],
+        "shipping_methods": [
+            {"value": key, "label": SERVICE_SHIPPING_METHOD_LABELS[key]}
+            for key in SERVICE_SHIPPING_METHODS
+        ],
+        "bank_details": settings.bank_details,
+        "default_payment_method": settings.default_payment_method or DEFAULT_SERVICE_PAYMENT_METHOD,
+        "default_payment_terms": DEFAULT_SERVICE_PAYMENT_TERMS,
+    }
+
+
+def _checkout_order_note(payment_terms: str | None, customer_note: str | None) -> str | None:
+    parts: list[str] = []
+    if payment_terms and payment_terms in STORE_PAYMENT_TERM_LABELS:
+        parts.append(f"Payment terms: {STORE_PAYMENT_TERM_LABELS[payment_terms]}")
+    if customer_note and customer_note.strip():
+        parts.append(customer_note.strip())
+    return "\n".join(parts) if parts else None
+
+
+def _checkout_confirmation_message(payment_method: str, payment_terms: str | None) -> str:
+    terms = STORE_PAYMENT_TERM_LABELS.get(payment_terms or "", "")
+    if payment_method == "online":
+        return "Service order received. Complete online payment to start work. Our team will confirm shortly."
+    if payment_method == "bank_transfer":
+        base = "Service order received. Pay via bank transfer / UPI as per your selected payment terms."
+        if terms:
+            return f"{base} ({terms}) Our team will confirm payment and begin service delivery."
+        return f"{base} Our team will confirm payment and begin service delivery."
+    if payment_method == "cod":
+        return "Order confirmed. Our team will contact you with payment instructions."
+    return "Order placed successfully."
 
 
 def _generate_store_order_number(db: Session, company_id: int, prefix: str) -> str:
@@ -397,7 +460,6 @@ def _upsert_contact(
         city=address.get("city") if address else None,
         state=address.get("state") if address else None,
         pincode=address.get("pincode") if address else None,
-        notes="Source: Online Store",
     )
     db.add(contact)
     db.flush()
@@ -795,7 +857,12 @@ def update_return(
 def public_shop_info(company_slug: str, db: Session = Depends(get_db)):
     company, _ = _resolve_company_by_slug(db, company_slug)
     settings = _get_store_settings(db, company)
-    return StoreShopInfoResponse(is_enabled=settings.is_enabled, store_name=settings.store_name or company.display_name)
+    options = _shop_checkout_options(settings)
+    return StoreShopInfoResponse(
+        is_enabled=settings.is_enabled,
+        store_name=settings.store_name or company.display_name,
+        **options,
+    )
 
 
 @public_router.get("/{company_slug}/shop/products", response_model=StoreCatalogResponse)
@@ -935,7 +1002,12 @@ def public_checkout(
     _require_store_enabled(settings)
     if data.payment_method not in PAYMENT_METHODS:
         raise HTTPException(status_code=400, detail="Invalid payment method")
-    if data.shipping_method not in SHIPPING_METHODS:
+    if STORE_CHECKOUT_MODE == "services" and data.payment_method not in SERVICE_PAYMENT_METHODS:
+        raise HTTPException(status_code=400, detail="Invalid payment method for online services")
+    if data.payment_terms and data.payment_terms not in STORE_PAYMENT_TERMS:
+        raise HTTPException(status_code=400, detail="Invalid payment terms")
+    shipping_method = "pickup" if data.shipping_method == "digital" else data.shipping_method
+    if shipping_method not in SHIPPING_METHODS:
         raise HTTPException(status_code=400, detail="Invalid shipping method")
     cart = _get_or_create_cart(db, company.id, x_cart_session, customer.id if customer else None)
     if not cart.items:
@@ -954,12 +1026,13 @@ def public_checkout(
         raise HTTPException(status_code=400, detail="Name, email, and phone are required")
 
     billing = data.billing_address or data.shipping_address
-    subtotal, tax_total, shipping_total, grand_total = _compute_order_totals(cart, settings)
+    subtotal, tax_total, shipping_total, grand_total = _compute_order_totals(cart, settings, shipping_method)
     order_number = _generate_store_order_number(db, company.id, settings.order_number_prefix)
-    initial_status = "pending_payment" if data.payment_method == "bank_transfer" else "paid"
-    payment_status = "unpaid" if data.payment_method in ("cod", "bank_transfer") else "paid"
+    initial_status = "pending_payment"
+    payment_status = "unpaid"
     if data.payment_method == "cod":
         initial_status = "paid"
+        payment_status = "unpaid"
 
     order = StoreOrder(
         company_id=company.id,
@@ -977,11 +1050,11 @@ def public_checkout(
         guest_phone=normalize_phone(phone),
         shipping_address_json=_address_dict(data.shipping_address),
         billing_address_json=_address_dict(billing),
-        shipping_method=data.shipping_method,
+        shipping_method=shipping_method,
         payment_method=data.payment_method,
-        customer_note=data.customer_note,
+        customer_note=_checkout_order_note(data.payment_terms, data.customer_note),
         placed_at=_utcnow(),
-        paid_at=_utcnow() if payment_status == "paid" and data.payment_method == "cod" else None,
+        paid_at=None,
     )
     db.add(order)
     db.flush()
@@ -1014,14 +1087,16 @@ def public_checkout(
 
     for item in list(cart.items):
         db.delete(item)
+    db.add(
+        ActivityLog(
+            action="store_order_placed",
+            details=f"order:{order.order_number}",
+            ip_address=get_client_ip(request),
+        )
+    )
     db.commit()
 
-    log_activity(db, "store_order_placed", details=f"order:{order.order_number}", ip_address=get_client_ip(request))
-    message = "Order placed successfully."
-    if data.payment_method == "bank_transfer":
-        message = "Order placed. Please complete bank transfer. Our team will confirm payment."
-    elif data.payment_method == "cod":
-        message = "Order confirmed. Pay on delivery."
+    message = _checkout_confirmation_message(data.payment_method, data.payment_terms)
     return StoreCheckoutResponse(
         order_number=order.order_number,
         order_id=order.id,

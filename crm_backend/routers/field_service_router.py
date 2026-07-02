@@ -74,6 +74,7 @@ def _get_settings(db: Session, company: Company) -> FieldServiceSettings:
         return settings
     settings = FieldServiceSettings(
         company_id=company.id,
+        is_enabled=True,
         notify_roles_json=DEFAULT_NOTIFY_ROLES,
         default_sla_hours=DEFAULT_SLA_HOURS,
         order_prefix=DEFAULT_ORDER_PREFIX,
