@@ -419,7 +419,7 @@ function DashboardLayout({ title, roleLabel, children }) {
         <header className="crm-premium-header">
           <div className="crm-header-left">
             <nav className="crm-header-breadcrumb" aria-label="Breadcrumb">
-              <Link to={homePath}>Workspace</Link>
+              <Link to={homePath}>{displayRole} Workspace</Link>
               {!isHome && (
                 <>
                   <span className="crm-header-breadcrumb-separator">/</span>
@@ -466,6 +466,11 @@ function DashboardLayout({ title, roleLabel, children }) {
 
             {/* Custom notifications bell */}
             <NotificationBell />
+
+            {/* Current Portal Name Badge */}
+            <span className="crm-shell-role-pill" style={{ textTransform: "capitalize", background: "rgba(124, 58, 237, 0.15)", borderColor: "rgba(124, 58, 237, 0.3)", color: "var(--crm-text)", fontSize: "0.8rem", padding: "6px 12px", borderRadius: "20px", fontWeight: "600" }}>
+              {displayRole} Portal
+            </span>
 
             {/* Profile and log out */}
             <Link to="/profile" className="crm-header-icon-btn" title="View Profile">
