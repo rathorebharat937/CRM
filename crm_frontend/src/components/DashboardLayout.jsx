@@ -436,33 +436,7 @@ function DashboardLayout({ title, roleLabel, children }) {
               <span>Search modules... (⌘K)</span>
             </div>
 
-            {/* Quick Create Dropdown */}
-            <div style={{ position: "relative" }}>
-              <button 
-                className="crm-quick-create-btn"
-                onClick={() => setIsQuickCreateOpen(!isQuickCreateOpen)}
-              >
-                <Plus size={16} />
-                <span>Quick Create</span>
-                <ChevronDown size={14} />
-              </button>
-              {isQuickCreateOpen && (
-                <>
-                  <div 
-                    style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 110 }} 
-                    onClick={() => setIsQuickCreateOpen(false)}
-                  />
-                  <div className="crm-notification-dropdown" style={{ display: "block", right: 0, top: "calc(100% + 8px)", zIndex: 120, width: "200px" }}>
-                    <div style={{ padding: "8px 0" }}>
-                      <Link to="/leads/new" className="crm-notification-item" style={{ padding: "8px 16px" }} onClick={() => setIsQuickCreateOpen(false)}>+ New Lead</Link>
-                      <Link to="/invoices/new" className="crm-notification-item" style={{ padding: "8px 16px" }} onClick={() => setIsQuickCreateOpen(false)}>+ Create Invoice</Link>
-                      <Link to="/contacts/new" className="crm-notification-item" style={{ padding: "8px 16px" }} onClick={() => setIsQuickCreateOpen(false)}>+ Create Customer</Link>
-                      <Link to="/projects/new" className="crm-notification-item" style={{ padding: "8px 16px" }} onClick={() => setIsQuickCreateOpen(false)}>+ New Project</Link>
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
+
 
             {/* Custom notifications bell */}
             <NotificationBell />
