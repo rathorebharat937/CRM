@@ -1,9 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plus, Play, Sparkles, TrendingUp, CheckSquare, Award } from "lucide-react";
+import { Plus, TrendingUp, Clock, CheckSquare, Users, CreditCard, HelpCircle, Bell } from "lucide-react";
 
-import AppLauncher from "./AppLauncher";
 import SalesKpis from "./SalesKpis";
 import { apiFetch } from "../utils/api";
 
@@ -12,13 +11,12 @@ function RoleHomePage({
   subtitle,
   children,
   showKpis = true,
-  launcherTitle = "Your apps",
-  launcherSubtitle,
 }) {
   const [currentDate, setCurrentDate] = useState("");
   const [revenueVal, setRevenueVal] = useState("₹8,542,000");
   const [leadsCount, setLeadsCount] = useState("4,236");
   const [approvalsCount, setApprovalsCount] = useState("45");
+  const [activities, setActivities] = useState([]);
 
   useEffect(() => {
     // Generate current date string in premium format
@@ -47,6 +45,40 @@ function RoleHomePage({
         }
       })
       .catch(() => {});
+
+    // Load recent activity logs
+    apiFetch("/admin/activity-logs?limit=5")
+      .then((data) => {
+        if (data && data.items) {
+          setActivities(data.items);
+        }
+      })
+      .catch(() => {
+        // Fallback mockup activity logs
+        setActivities([
+          {
+            id: 1,
+            action: "lead_created",
+            email: "Sarah L.",
+            details: "New Lead: TechCorp Solutions added",
+            created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 2,
+            action: "invoice_created",
+            email: "Admin User",
+            details: "Invoice #INV-2024-105 created for Acme Industries",
+            created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
+          },
+          {
+            id: 3,
+            action: "lead_converted",
+            email: "Sales Agent",
+            details: "Deal Closed: Global Logistics contract signed",
+            created_at: new Date(Date.now() - 120 * 60 * 1000).toISOString(),
+          },
+        ]);
+      });
   }, []);
 
   // Time-based prefix for greeting
@@ -84,7 +116,7 @@ function RoleHomePage({
       variants={containerVariants}
       style={{ display: "flex", flexDirection: "column", gap: "24px" }}
     >
-      {/* PREMIUM DASHBOARD HERO */}
+      {/* Welcome Section */}
       <motion.header className="crm-premium-hero" variants={itemVariants}>
         <div className="crm-premium-hero-left">
           <h1>{formattedGreeting}</h1>
@@ -109,7 +141,7 @@ function RoleHomePage({
         </div>
       </motion.header>
 
-      {/* QUICK ACTIONS BAR */}
+      {/* Quick Actions */}
       <motion.div className="crm-quick-actions-bar" variants={itemVariants}>
         <span style={{ fontSize: "0.8rem", fontWeight: "700", textTransform: "uppercase", color: "var(--crm-muted)", marginRight: "10px" }}>
           Quick Actions:
@@ -146,14 +178,14 @@ function RoleHomePage({
 
       {children}
 
-      {/* KPI CARDS (AT A GLANCE) */}
+      {/* KPI Cards */}
       {showKpis && (
         <motion.div variants={itemVariants}>
           <SalesKpis />
         </motion.div>
       )}
 
-      {/* PERFORMANCE ANALYTICS SECTION */}
+      {/* Charts (Performance Analytics) */}
       <motion.div className="crm-analytics-card" variants={itemVariants}>
         <div className="crm-analytics-header">
           <h3 className="crm-analytics-title" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
@@ -172,7 +204,6 @@ function RoleHomePage({
           </div>
         </div>
 
-        {/* Premium SVG interactive line chart */}
         <div className="crm-svg-chart-container">
           <svg viewBox="0 0 800 200" width="100%" height="100%" preserveAspectRatio="none">
             <defs>
@@ -181,13 +212,9 @@ function RoleHomePage({
                 <stop offset="100%" stopColor="var(--crm-primary)" stopOpacity="0" />
               </linearGradient>
             </defs>
-            
-            {/* Grid Lines */}
             <line x1="0" y1="50" x2="800" y2="50" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
             <line x1="0" y1="100" x2="800" y2="100" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
             <line x1="0" y1="150" x2="800" y2="150" stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-            
-            {/* Target Line (flat dash-array) */}
             <path
               d="M 0 130 Q 150 120 300 110 T 600 100 T 800 90"
               fill="none"
@@ -196,14 +223,10 @@ function RoleHomePage({
               strokeDasharray="4 4"
               opacity="0.8"
             />
-            
-            {/* Revenue Gradient Fill */}
             <path
               d="M 0 170 Q 150 150 300 120 T 600 80 T 800 60 L 800 200 L 0 200 Z"
               fill="url(#chartGrad)"
             />
-            
-            {/* Revenue Line */}
             <path
               d="M 0 170 Q 150 150 300 120 T 600 80 T 800 60"
               fill="none"
@@ -211,13 +234,10 @@ function RoleHomePage({
               strokeWidth="3.5"
               strokeLinecap="round"
             />
-
-            {/* Interactive node indicator */}
             <circle cx="600" cy="80" r="5" fill="var(--crm-primary)" />
             <circle cx="600" cy="80" r="10" fill="none" stroke="var(--crm-primary)" strokeWidth="2" opacity="0.5" />
           </svg>
           
-          {/* Tooltip on the chart */}
           <div
             style={{
               position: "absolute",
@@ -239,14 +259,68 @@ function RoleHomePage({
         </div>
       </motion.div>
 
-      {/* RE-DESIGNED APP LAUNCHER */}
-      <motion.div variants={itemVariants}>
-        <AppLauncher
-          title={launcherTitle}
-          subtitle={launcherSubtitle}
-          groupByCategory
-          className="crm-role-home-launcher"
-        />
+      {/* RECENT ACTIVITY & NOTIFICATIONS SECTIONS */}
+      <motion.div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))",
+          gap: "24px",
+          marginTop: "8px",
+        }}
+        variants={itemVariants}
+      >
+        {/* Recent Activities */}
+        <div className="crm-analytics-card" style={{ padding: "20px" }}>
+          <h3 className="crm-activity-section-title" style={{ fontSize: "0.8rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--crm-muted)", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "10px", marginBottom: "16px" }}>
+            Recent Activity
+          </h3>
+          <div className="crm-activity-list">
+            {activities.map((act) => (
+              <div key={act.id} className="crm-activity-item" style={{ display: "flex", gap: "12px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+                <span className="crm-activity-indicator success" style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--crm-success)", marginTop: "6px", flexShrink: 0 }} />
+                <div className="crm-activity-content" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "0.8rem" }}>
+                  <span className="crm-activity-title" style={{ color: "var(--crm-text)", fontWeight: "600" }}>
+                    {act.email ? `${act.email}: ` : ""}
+                    {act.details}
+                  </span>
+                  <span className="crm-activity-time" style={{ fontSize: "0.75rem", color: "var(--crm-muted)" }}>
+                    {new Date(act.created_at).toLocaleString([], {
+                      month: "short",
+                      day: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Notifications */}
+        <div className="crm-analytics-card" style={{ padding: "20px" }}>
+          <h3 className="crm-activity-section-title" style={{ fontSize: "0.8rem", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.05em", color: "var(--crm-muted)", borderBottom: "1px solid rgba(255,255,255,0.05)", paddingBottom: "10px", marginBottom: "16px" }}>
+            Notifications
+          </h3>
+          <div className="crm-activity-list">
+            <div className="crm-activity-item" style={{ display: "flex", gap: "12px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <span className="crm-activity-indicator warning" style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--crm-warning)", marginTop: "6px", flexShrink: 0 }} />
+              <div className="crm-activity-content" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "0.8rem" }}>
+                <span className="crm-activity-title" style={{ color: "var(--crm-text)", fontWeight: "600" }}>Weekly Report Ready</span>
+                <span className="crm-activity-desc" style={{ color: "var(--crm-muted)" }}>Q3 Sales Analysis is generated and ready for review.</span>
+                <span className="crm-activity-time" style={{ fontSize: "0.75rem", color: "var(--crm-muted)", marginTop: "2px" }}>1 day ago</span>
+              </div>
+            </div>
+            <div className="crm-activity-item" style={{ display: "flex", gap: "12px", paddingBottom: "12px", borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
+              <span className="crm-activity-indicator primary" style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--crm-accent)", marginTop: "6px", flexShrink: 0 }} />
+              <div className="crm-activity-content" style={{ display: "flex", flexDirection: "column", gap: "2px", fontSize: "0.8rem" }}>
+                <span className="crm-activity-title" style={{ color: "var(--crm-text)", fontWeight: "600" }}>System Update Installed</span>
+                <span className="crm-activity-desc" style={{ color: "var(--crm-muted)" }}>Premium dark workspace design optimizations enabled.</span>
+                <span className="crm-activity-time" style={{ fontSize: "0.75rem", color: "var(--crm-muted)", marginTop: "2px" }}>2 days ago</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </motion.div>
     </motion.div>
   );

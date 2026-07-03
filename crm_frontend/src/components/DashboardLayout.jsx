@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, PanelLeftClose, PanelLeft, Plus, Bell, MessageSquare, LogOut, 
   ChevronDown, ChevronRight, Star, Settings, Shield, User, Globe, ShoppingBag, 
@@ -13,15 +14,26 @@ import { getRoleHomePath, getRoleLabel, isRoleHomePath } from "../utils/roleHome
 import { CRM_APPS, filterAppsByPermission } from "../config/appCatalog";
 import NotificationBell from "./NotificationBell";
 
-// Map category IDs to headers
+// Categories Ordering and Mapping
+const CATEGORY_ORDER = [
+  "sales",      // CRM
+  "billing",    // Finance
+  "platform",   // Platform
+  "people",     // HR
+  "inventory",  // Inventory
+  "operations", // Projects
+  "finance",    // Reports
+  "admin",      // Administration
+];
+
 const CATEGORIES_LABELS = {
-  sales: "CRM & Sales",
-  billing: "Billing & GST",
-  people: "HR & Team",
-  finance: "Finance & Accounts",
-  inventory: "Inventory & Stock",
-  operations: "Projects & Operations",
-  platform: "Platform & Growth",
+  sales: "CRM",
+  billing: "Finance",
+  platform: "Platform",
+  people: "HR",
+  inventory: "Inventory",
+  operations: "Projects",
+  finance: "Reports",
   admin: "Administration",
 };
 
@@ -104,7 +116,7 @@ function DashboardLayout({ title, roleLabel, children }) {
     }
   });
 
-  // Favorites & Pinned items
+  // Favorites / Pinned items
   const [favorites, setFavorites] = useState(() => {
     try {
       const saved = localStorage.getItem("crmFavorites");
@@ -119,70 +131,19 @@ function DashboardLayout({ title, roleLabel, children }) {
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef(null);
 
+  // Sidebar search input state (filters list in-place)
+  const [sidebarSearch, setSidebarSearch] = useState("");
+
   // Quick Create dropdown state
   const [isQuickCreateOpen, setIsQuickCreateOpen] = useState(false);
 
-  // Recent activity logs
-  const [activities, setActivities] = useState([]);
-
-  // Fetch permissions and logs
+  // Fetch permissions
   useEffect(() => {
     if (localStorage.getItem("token") && getPermissions().length === 0) {
       apiFetch("/users/me/permissions")
         .then((data) => setPermissions(data.permissions))
         .catch(() => {});
     }
-
-    // Load recent logs for the Activity panel
-    apiFetch("/admin/activity-logs?limit=6")
-      .then((data) => {
-        if (data && data.items) {
-          setActivities(data.items);
-        }
-      })
-      .catch(() => {
-        // Fallback to high-quality mockup activity logs if not admin/unauthorized
-        setActivities([
-          {
-            id: 1,
-            action: "lead_created",
-            email: "Sarah L.",
-            details: "New Lead: TechCorp Solutions added",
-            created_at: new Date(Date.now() - 10 * 60 * 1000).toISOString(),
-            ip_address: "192.168.1.1",
-          },
-          {
-            id: 2,
-            action: "invoice_created",
-            email: "Admin User",
-            details: "Invoice #INV-2024-105 created for Acme Industries",
-            created_at: new Date(Date.now() - 60 * 60 * 1000).toISOString(),
-            ip_address: "192.168.1.5",
-          },
-          {
-            id: 3,
-            action: "lead_converted",
-            email: "Sales Agent",
-            details: "Deal Closed: Global Logistics contract signed",
-            created_at: new Date(Date.now() - 120 * 60 * 1000).toISOString(),
-            ip_address: "192.168.1.8",
-          },
-        ]);
-      });
-
-    // Storage event listener for favorites updates
-    const handleStorage = () => {
-      try {
-        const saved = localStorage.getItem("crmFavorites");
-        if (saved) {
-          setFavorites(JSON.parse(saved));
-        }
-      } catch {}
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-    };
   }, []);
 
   // Keyboard shortcut listener (Ctrl+K or Cmd+K)
@@ -197,7 +158,18 @@ function DashboardLayout({ title, roleLabel, children }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  // Sync states to local storage
+  // Listen to favorite updates from app tiles
+  useEffect(() => {
+    const handleStorage = () => {
+      try {
+        const saved = localStorage.getItem("crmFavorites");
+        if (saved) setFavorites(JSON.parse(saved));
+      } catch {}
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
       const next = !prev;
@@ -250,10 +222,19 @@ function DashboardLayout({ title, roleLabel, children }) {
     return acc;
   }, {});
 
-  // Favorites list mapped from allowed apps
+  // Favorites list
   const favoriteApps = allowedApps.filter((app) => favorites.includes(app.id));
 
-  // Search filter
+  // Search filter inside sidebar
+  const getFilteredApps = (appsList) => {
+    if (!sidebarSearch.trim()) return appsList;
+    return appsList.filter((app) =>
+      app.label.toLowerCase().includes(sidebarSearch.toLowerCase()) ||
+      app.subtitle?.toLowerCase().includes(sidebarSearch.toLowerCase())
+    );
+  };
+
+  // Search filter for top search overlay
   const searchResults = searchQuery.trim()
     ? allowedApps.filter(
         (app) =>
@@ -276,22 +257,52 @@ function DashboardLayout({ title, roleLabel, children }) {
           </button>
         </div>
 
-        {/* Global Search Button in Sidebar */}
-        <button className="crm-sidebar-search-btn" onClick={() => setIsSearchOpen(true)}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-            <Search size={15} />
-            {!sidebarCollapsed && <span>Search modules...</span>}
+        {/* Sidebar Inline Search Filter */}
+        {!sidebarCollapsed ? (
+          <div style={{ padding: "8px 14px", position: "relative" }}>
+            <input
+              type="text"
+              placeholder="Search modules... (⌘K)"
+              className="crm-sidebar-search-btn"
+              style={{ width: "100%", margin: 0, paddingRight: "30px", cursor: "text" }}
+              value={sidebarSearch}
+              onChange={(e) => setSidebarSearch(e.target.value)}
+            />
+            {sidebarSearch && (
+              <button 
+                onClick={() => setSidebarSearch("")}
+                style={{ position: "absolute", right: "22px", top: "16px", background: "transparent", border: "none", color: "var(--crm-muted)", fontSize: "0.8rem", cursor: "pointer" }}
+              >
+                ×
+              </button>
+            )}
           </div>
-          {!sidebarCollapsed && <span className="crm-kbd">⌘K</span>}
-        </button>
+        ) : (
+          <button className="crm-sidebar-search-btn" onClick={toggleSidebar} title="Search modules">
+            <Search size={15} />
+          </button>
+        )}
 
         {/* Sidebar Navigation items */}
         <div className="crm-sidebar-scroll">
-          {/* Favorites Section */}
-          {!sidebarCollapsed && favoriteApps.length > 0 && (
+          {/* Main Dashboard home button */}
+          <div className="crm-sidebar-items" style={{ marginBottom: "12px" }}>
+            <Link
+              to={homePath}
+              className={`crm-sidebar-link${pathname === homePath ? " active" : ""}`}
+            >
+              <span className="crm-sidebar-link-icon" style={{ color: "var(--crm-accent)" }}>
+                <Laptop size={16} />
+              </span>
+              {!sidebarCollapsed && <span>Dashboard</span>}
+            </Link>
+          </div>
+
+          {/* Favorites / Pinned Section */}
+          {!sidebarCollapsed && favoriteApps.length > 0 && !sidebarSearch.trim() && (
             <div className="crm-sidebar-section">
               <div className="crm-sidebar-section-header">
-                <span>Favorites</span>
+                <span>Pinned Favorites</span>
                 <Star size={12} fill="#F59E0B" color="#F59E0B" />
               </div>
               <div className="crm-sidebar-items">
@@ -315,9 +326,11 @@ function DashboardLayout({ title, roleLabel, children }) {
             </div>
           )}
 
-          {/* Module Categories */}
-          {Object.entries(CATEGORIES_LABELS).map(([catId, label]) => {
-            const apps = appsByCategory[catId] || [];
+          {/* Module Categories (Dynamic loops over all CRM_APPS) */}
+          {CATEGORY_ORDER.map((catId) => {
+            const label = CATEGORIES_LABELS[catId];
+            const rawApps = appsByCategory[catId] || [];
+            const apps = getFilteredApps(rawApps);
             if (apps.length === 0) return null;
             const isCollapsed = collapsedCats[catId];
 
@@ -332,7 +345,7 @@ function DashboardLayout({ title, roleLabel, children }) {
                   <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "8px 0" }} />
                 )}
 
-                {(!isCollapsed || sidebarCollapsed) && (
+                {(!isCollapsed || sidebarCollapsed || sidebarSearch.trim() !== "") && (
                   <div className="crm-sidebar-items">
                     {apps.map((app) => {
                       const IconComp = ICON_MAP[app.icon] || FileText;
@@ -365,6 +378,25 @@ function DashboardLayout({ title, roleLabel, children }) {
               </div>
             );
           })}
+
+          {/* Help & Support Category */}
+          <div className="crm-sidebar-section">
+            {!sidebarCollapsed ? (
+              <div className="crm-sidebar-section-header">
+                <span>Support</span>
+              </div>
+            ) : (
+              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "8px 0" }} />
+            )}
+            <div className="crm-sidebar-items">
+              <Link to="/help-support" className="crm-sidebar-link" title="Help & Support">
+                <span className="crm-sidebar-link-icon" style={{ color: "#38bdf8" }}>
+                  <HelpCircle size={16} />
+                </span>
+                {!sidebarCollapsed && <span>Help & Support</span>}
+              </Link>
+            </div>
+          </div>
         </div>
 
         {/* Sidebar Footer - User Profile Summary */}
@@ -404,7 +436,7 @@ function DashboardLayout({ title, roleLabel, children }) {
               <span>Search modules... (⌘K)</span>
             </div>
 
-            {/* Quick Actions Dropdown */}
+            {/* Quick Create Dropdown */}
             <div style={{ position: "relative" }}>
               <button 
                 className="crm-quick-create-btn"
@@ -453,65 +485,8 @@ function DashboardLayout({ title, roleLabel, children }) {
 
         {/* CONTAINER BODY & COMPONENT RENDER */}
         <div className="crm-layout-main-scroll">
-          <main className={`crm-layout-body${isHome ? " with-activity" : ""}`}>
+          <main className="crm-layout-body">
             {children}
-
-            {/* RIGHT SIDE ACTIVITY & NOTIFICATION PANEL */}
-            {isHome && (
-              <aside className="crm-activity-panel">
-                <div className="crm-activity-section">
-                  <h3 className="crm-activity-section-title">Recent Activity</h3>
-                  <div className="crm-activity-list">
-                    {activities.map((act) => (
-                      <div key={act.id} className="crm-activity-item">
-                        <span className="crm-activity-indicator success" />
-                        <div className="crm-activity-content">
-                          <span className="crm-activity-title">
-                            {act.email ? `${act.email}: ` : ""}
-                            {act.details}
-                          </span>
-                          <span className="crm-activity-time">
-                            {new Date(act.created_at).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="crm-activity-section">
-                  <h3 className="crm-activity-section-title">Notifications</h3>
-                  <div className="crm-activity-list">
-                    <div className="crm-activity-item">
-                      <span className="crm-activity-indicator warning" />
-                      <div className="crm-activity-content">
-                        <span className="crm-activity-title">Weekly Report Ready</span>
-                        <span className="crm-activity-desc">Q3 Sales Analysis is generated.</span>
-                        <span className="crm-activity-time">1 day ago</span>
-                      </div>
-                    </div>
-                    <div className="crm-activity-item">
-                      <span className="crm-activity-indicator primary" />
-                      <div className="crm-activity-content">
-                        <span className="crm-activity-title">System Update Installed</span>
-                        <span className="crm-activity-desc">New premium UI dashboard features enabled.</span>
-                        <span className="crm-activity-time">2 days ago</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: "auto", paddingTop: "20px" }}>
-                  <Link to="/help-support" style={{ fontSize: "0.8rem", color: "var(--crm-accent)", display: "flex", alignItems: "center", gap: "6px", textDecoration: "none", fontWeight: "600" }}>
-                    <HelpCircle size={14} />
-                    <span>Help & Support</span>
-                  </Link>
-                </div>
-              </aside>
-            )}
           </main>
         </div>
       </div>
