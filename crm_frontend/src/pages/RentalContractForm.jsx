@@ -23,7 +23,7 @@ function RentalContractForm() {
 
   useEffect(() => {
     Promise.all([
-      apiFetch("/contacts?limit=200"),
+      apiFetch("/contacts?limit=100"),
       apiFetch("/rental/assets?status=active"),
     ])
       .then(([cData, aData]) => {

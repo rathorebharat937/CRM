@@ -98,9 +98,6 @@ function Projects() {
         {data.items.length === 0 ? (
           <div className="crm-empty-state crm-mt">
             <p>No projects found.</p>
-            {hasPermission("projects.create") && (
-              <Link to="/projects/new" className="crm-btn crm-btn-sm crm-mt">Create first project</Link>
-            )}
           </div>
         ) : (
           <div className="crm-table-wrap crm-mt">
