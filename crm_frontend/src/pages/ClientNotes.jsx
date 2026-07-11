@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 
 import DashboardLayout from "../components/DashboardLayout";
@@ -7,6 +7,7 @@ import { hasPermission } from "../utils/permissions";
 import {
   NOTE_TYPE_LABELS,
   VISIBILITY_LABELS,
+  emptyNoteForm,
   formatDateTime,
   noteTypeBadgeClass,
 } from "../utils/clientNotes";
@@ -24,6 +25,23 @@ function ClientNotes() {
   const [contactId, setContactId] = useState(searchParams.get("contact_id") || "");
   const [error, setError] = useState("");
   const [expanded, setExpanded] = useState({});
+
+  // Create note modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState(emptyNoteForm());
+  const [createError, setCreateError] = useState("");
+  const [createMessage, setCreateMessage] = useState("");
+  const modalScrollRef = useRef(null);
+
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    if (showCreateModal) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => { document.body.style.overflow = ""; };
+  }, [showCreateModal]);
 
   const contactFilter = searchParams.get("contact_id") || contactId;
 
@@ -53,6 +71,38 @@ function ClientNotes() {
     load(1);
   };
 
+  const handleCreateSubmit = async (e) => {
+    e.preventDefault();
+    setCreateError("");
+    setCreateMessage("");
+    try {
+      await apiFetch("/client-notes", {
+        method: "POST",
+        body: JSON.stringify({
+          note_type: createForm.note_type,
+          title: createForm.title.trim(),
+          body: createForm.body.trim(),
+          visibility_scope: createForm.visibility_scope,
+          tags: createForm.tags.trim() || null,
+          is_pinned: createForm.is_pinned,
+          is_sensitive: createForm.is_sensitive || createForm.visibility_scope === "sensitive",
+          follow_up_required: createForm.follow_up_required,
+          follow_up_due_date: createForm.follow_up_due_date
+            ? new Date(`${createForm.follow_up_due_date}T12:00:00`).toISOString()
+            : null,
+          follow_up_priority: createForm.follow_up_priority,
+        }),
+      });
+      setCreateMessage("Note created successfully.");
+      setCreateForm(emptyNoteForm());
+      setShowCreateModal(false);
+      load(1);
+      apiFetch("/client-notes/stats/summary").then(setStats).catch(() => {});
+    } catch (err) {
+      setCreateError(err.message);
+    }
+  };
+
   const totalPages = Math.max(1, Math.ceil(data.total / data.limit));
 
   return (
@@ -61,11 +111,22 @@ function ClientNotes() {
         <div className="crm-detail-header">
           <p className="crm-meta-sub">{data.total} note{data.total === 1 ? "" : "s"}</p>
           <div className="crm-inline-actions">
+            {hasPermission("client_notes.create") && (
+              <button
+                type="button"
+                className="crm-btn crm-btn-sm"
+                onClick={() => { setShowCreateModal(true); setCreateError(""); setCreateMessage(""); }}
+              >
+                + Create client note
+              </button>
+            )}
             {hasPermission("client_notes.manage_followups") && (
               <Link to="/client-notes/follow-ups" className="crm-btn crm-btn-sm crm-btn-outline">Follow-up queue</Link>
             )}
           </div>
         </div>
+
+        {createMessage && <p className="crm-success crm-mt">{createMessage}</p>}
 
         {stats && (
           <div className="crm-stat-strip crm-mt">
@@ -167,6 +228,144 @@ function ClientNotes() {
           </div>
         )}
       </div>
+
+      {/* Create Client Note Modal */}
+      {showCreateModal && (
+        <div
+          className="crm-note-modal-overlay"
+          onClick={() => setShowCreateModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="create-note-modal-title"
+        >
+          <div
+            className="crm-note-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="crm-note-modal-header">
+              <h3 id="create-note-modal-title" className="crm-note-modal-title">
+                Create Client Note
+              </h3>
+              <button
+                type="button"
+                className="crm-note-modal-close"
+                onClick={() => setShowCreateModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="crm-note-modal-body" ref={modalScrollRef}>
+              {createError && (
+                <p className="crm-error" style={{ marginBottom: "4px" }}>{createError}</p>
+              )}
+
+              <form onSubmit={handleCreateSubmit} className="crm-form">
+                {/* Row 1: Type + Visibility */}
+                <div className="crm-form-grid">
+                  <div className="crm-form-field">
+                    <label htmlFor="cn-type">Type</label>
+                    <select
+                      id="cn-type"
+                      value={createForm.note_type}
+                      onChange={(e) => setCreateForm({ ...createForm, note_type: e.target.value })}
+                    >
+                      {(types.length
+                        ? types
+                        : Object.entries(NOTE_TYPE_LABELS).map(([value, label]) => ({ value, label }))
+                      ).map((t) => (
+                        <option key={t.value} value={t.value}>{t.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="crm-form-field">
+                    <label htmlFor="cn-visibility">Visibility</label>
+                    <select
+                      id="cn-visibility"
+                      value={createForm.visibility_scope}
+                      onChange={(e) => setCreateForm({ ...createForm, visibility_scope: e.target.value })}
+                    >
+                      {Object.entries(VISIBILITY_LABELS).map(([k, v]) => (
+                        <option key={k} value={k}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Summary */}
+                <div className="crm-form-field">
+                  <label htmlFor="cn-title">Summary *</label>
+                  <input
+                    id="cn-title"
+                    value={createForm.title}
+                    onChange={(e) => setCreateForm({ ...createForm, title: e.target.value })}
+                    placeholder="Short summary…"
+                    required
+                  />
+                </div>
+
+                {/* Note body */}
+                <div className="crm-form-field">
+                  <label htmlFor="cn-body">Note *</label>
+                  <textarea
+                    id="cn-body"
+                    rows={5}
+                    value={createForm.body}
+                    onChange={(e) => setCreateForm({ ...createForm, body: e.target.value })}
+                    placeholder="Capture call details, requirements, objections…"
+                    required
+                  />
+                </div>
+
+                {/* Flags */}
+                <div className="crm-note-form-flags">
+                  <label className="crm-consent-check">
+                    <input
+                      type="checkbox"
+                      checked={createForm.follow_up_required}
+                      onChange={(e) => setCreateForm({ ...createForm, follow_up_required: e.target.checked })}
+                    />
+                    Follow-up required
+                  </label>
+                  {createForm.follow_up_required && (
+                    <input
+                      type="date"
+                      className="crm-note-modal-date"
+                      value={createForm.follow_up_due_date}
+                      onChange={(e) => setCreateForm({ ...createForm, follow_up_due_date: e.target.value })}
+                    />
+                  )}
+                  <label className="crm-consent-check">
+                    <input
+                      type="checkbox"
+                      checked={createForm.is_pinned}
+                      onChange={(e) => setCreateForm({ ...createForm, is_pinned: e.target.checked })}
+                    />
+                    Pin as key insight
+                  </label>
+                </div>
+
+                {/* Actions */}
+                <div className="crm-note-modal-actions">
+                  <button type="submit" className="crm-btn crm-btn-sm">
+                    Save note
+                  </button>
+                  <button
+                    type="button"
+                    className="crm-btn crm-btn-sm crm-btn-outline"
+                    onClick={() => setShowCreateModal(false)}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   );
 }

@@ -1,11 +1,10 @@
-import { useEffect, useState, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useEffect, useState, useRef } from "react";import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Search, PanelLeftClose, PanelLeft, Plus, Bell, MessageSquare, LogOut, 
   ChevronDown, ChevronRight, Star, Settings, Shield, User, Globe, ShoppingBag, 
   Terminal, Activity, Clock, Briefcase, FileText, CheckSquare, Users, CreditCard,
-  BookOpen, HelpCircle, Laptop, Layers, ClipboardList, TrendingUp
+  BookOpen, Laptop, Layers, ClipboardList, TrendingUp
 } from "lucide-react";
 
 import { API_URL, apiFetch, clearSession, getAuthHeaders } from "../utils/api";
@@ -130,6 +129,7 @@ function DashboardLayout({ title, roleLabel, children }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = useRef(null);
+  const sidebarScrollRef = useRef(null);
 
   // Sidebar search input state (filters list in-place)
   const [sidebarSearch, setSidebarSearch] = useState("");
@@ -168,6 +168,17 @@ function DashboardLayout({ title, roleLabel, children }) {
     };
     window.addEventListener("storage", handleStorage);
     return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  // Preserve sidebar scroll position across navigation
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) return;
+    const saved = sessionStorage.getItem("sidebarScrollTop");
+    if (saved) el.scrollTop = parseInt(saved, 10);
+    const handleScroll = () => sessionStorage.setItem("sidebarScrollTop", String(el.scrollTop));
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
   const toggleSidebar = () => {
@@ -284,7 +295,7 @@ function DashboardLayout({ title, roleLabel, children }) {
         )}
 
         {/* Sidebar Navigation items */}
-        <div className="crm-sidebar-scroll">
+        <div className="crm-sidebar-scroll" ref={sidebarScrollRef}>
           {/* Main Dashboard home button */}
           <div className="crm-sidebar-items" style={{ marginBottom: "12px" }}>
             <Link
@@ -379,24 +390,7 @@ function DashboardLayout({ title, roleLabel, children }) {
             );
           })}
 
-          {/* Help & Support Category */}
-          <div className="crm-sidebar-section">
-            {!sidebarCollapsed ? (
-              <div className="crm-sidebar-section-header">
-                <span>Support</span>
-              </div>
-            ) : (
-              <div style={{ height: "1px", background: "rgba(255,255,255,0.05)", margin: "8px 0" }} />
-            )}
-            <div className="crm-sidebar-items">
-              <Link to="/help-support" className="crm-sidebar-link" title="Help & Support">
-                <span className="crm-sidebar-link-icon" style={{ color: "#38bdf8" }}>
-                  <HelpCircle size={16} />
-                </span>
-                {!sidebarCollapsed && <span>Help & Support</span>}
-              </Link>
-            </div>
-          </div>
+
         </div>
 
         {/* Sidebar Footer - User Profile Summary */}
