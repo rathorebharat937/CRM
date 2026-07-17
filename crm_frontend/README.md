@@ -6,15 +6,6 @@ React (Create React App) UI for BlackPapers CRM. Talks to the FastAPI backend at
 
 ---
 
-## Current build status
-
-| Level | Status | Frontend coverage |
-|-------|--------|-------------------|
-| **Level 1** | **Done** | Auth, roles, contacts, products, dashboards, notifications, files, admin settings |
-| **Level 2** | **~85%** | Leads, pipeline, quotations, orders, invoices, notes, follow-ups, payments, reports |
-| **Level 3** | **~90%** | Expenses, POs, vendor bills, inventory, warehouses, tax/ledger/P&L reports |
-| **Level 4** | **~80%** | Projects, timesheets, leave, employees, attendance, recruitment, payroll, chat |
-| **UI shell** | **Done** | App launcher, landing page, GST document previews |
 
 ---
 
@@ -186,12 +177,6 @@ Serve `build/` with a static host. Update `API_URL` in `src/utils/api.js` for pr
 
 ---
 
-## Not built yet (frontend)
-
-- Live email/WhatsApp send from CRM (templates UI exists; needs SMTP/WhatsApp API)
-- LLM-backed AI Assistant (rule-based chat ships today)
-- Live Razorpay/Tally sync in marketplace
-- Push / SMS delivery (in-app alerts work)
 
 ---
 
