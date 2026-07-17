@@ -196,23 +196,3 @@ Full reference: http://127.0.0.1:8000/docs
 
 ---
 
-## Troubleshooting
-
-| Issue | Fix |
-|-------|-----|
-| DB connection failed | PostgreSQL running; check `DATABASE_URL` in `.env` |
-| `ModuleNotFoundError` | `pip install -r requirements.txt` inside venv |
-| Frontend can't reach API | Backend on port 8000; restart `npm start` after pulls |
-| Missing app tiles | `python seed_permissions.py`, then log out and in |
-| Migration errors | `python -m alembic upgrade head` |
-
----
-
-## Git & data
-
-**In Git:** source code, migrations, seed scripts, docs  
-**Not in Git:** `.env`, upload files, `clients.json`, CSV/Excel, `venv/`, `node_modules/`
-
-Pulling code does not copy database rows — run migrations and seeds on each machine.
-
-Frontend-specific notes: [crm_frontend/README.md](crm_frontend/README.md)
