@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from chat_config import CHAT_CHANNEL_LABELS, CHAT_CHANNELS, MAX_MESSAGE_LENGTH
 from models import ChatMessage, Company, Project, User
@@ -12,11 +13,6 @@ from schemas import ChatMessageCreateRequest, ChatMessageListResponse, ChatMessa
 router = APIRouter(prefix="/chat", tags=["chat"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _msg_resp(msg: ChatMessage) -> ChatMessageResponse:
@@ -48,10 +44,10 @@ def list_messages(
     project_id: int | None = None,
     recipient_id: int | None = None,
     limit: int = Query(50, ge=1, le=200),
-    _: User = Depends(require_permission("chat.view")),
+    user: User = Depends(require_permission("chat.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     if channel not in CHAT_CHANNELS:
         raise HTTPException(status_code=400, detail="Invalid channel")
 
@@ -83,7 +79,7 @@ def send_message(
     current_user: User = Depends(require_permission("chat.send")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if payload.channel not in CHAT_CHANNELS:
         raise HTTPException(status_code=400, detail="Invalid channel")
     body = (payload.body or "").strip()

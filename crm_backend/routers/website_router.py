@@ -12,6 +12,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from company_branding import build_company_branding
 from config import FRONTEND_URL
@@ -88,11 +89,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing website")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> WebsiteSettings:
@@ -430,7 +426,7 @@ def _resolve_company_by_slug(db: Session, company_slug: str) -> tuple[Company, W
 
 @router.get("/meta", response_model=WebsiteMetaResponse)
 def website_meta(user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    _get_company(db)
+    get_current_company(db, user)
     return WebsiteMetaResponse(
         page_types=[WebsiteOption(value=k, label=v) for k, v in PAGE_TYPE_LABELS.items()],
         page_statuses=[WebsiteOption(value=k, label=v) for k, v in STATUS_LABELS.items()],
@@ -443,7 +439,7 @@ def website_meta(user: User = Depends(require_permission("website.view")), db: S
 
 @router.get("/dashboard", response_model=WebsiteDashboardResponse)
 def website_dashboard(user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     since = _utcnow() - timedelta(days=7)
     published_pages = db.query(func.count(WebsitePage.id)).filter(
@@ -494,7 +490,7 @@ def website_dashboard(user: User = Depends(require_permission("website.view")), 
 
 @router.get("/settings", response_model=WebsiteSettingsResponse)
 def get_website_settings(user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     return WebsiteSettingsResponse(
         company_slug=site.company_slug,
@@ -510,7 +506,7 @@ def update_website_settings(
     user: User = Depends(require_permission("website.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     if data.company_slug is not None:
         slug = normalize_slug(data.company_slug)
@@ -549,7 +545,7 @@ def list_pages(
     user: User = Depends(require_permission("website.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     q = db.query(WebsitePage).filter(WebsitePage.company_id == company.id)
     if status:
@@ -581,7 +577,7 @@ def create_page(
     user: User = Depends(require_permission("website.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     if data.page_type not in PAGE_TYPES:
         raise HTTPException(status_code=400, detail="Invalid page type")
@@ -624,7 +620,7 @@ def create_page(
 
 @router.get("/pages/{page_id}", response_model=WebsitePageResponse)
 def get_page(page_id: int, user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     page = _get_page(db, page_id, company.id)
     return _page_response(db, page, site)
@@ -637,7 +633,7 @@ def update_page(
     user: User = Depends(require_permission("website.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     page = _get_page(db, page_id, company.id)
     if data.title is not None:
@@ -685,7 +681,7 @@ def publish_page(
     user: User = Depends(require_permission("website.publish")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     page = _get_page(db, page_id, company.id)
     if not page.sections_json:
@@ -714,7 +710,7 @@ def unpublish_page(
     user: User = Depends(require_permission("website.publish")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     page = _get_page(db, page_id, company.id)
     page.status = "draft"
@@ -737,7 +733,7 @@ def delete_page(
     user: User = Depends(require_permission("website.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = _get_settings(db, company)
     page = _get_page(db, page_id, company.id)
     if page.status == "published":
@@ -753,7 +749,7 @@ def delete_page(
 
 @router.get("/forms", response_model=WebsiteFormListResponse)
 def list_forms(user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     forms = db.query(WebsiteForm).filter(WebsiteForm.company_id == company.id).order_by(WebsiteForm.updated_at.desc()).all()
     items = []
     for form in forms:
@@ -777,7 +773,7 @@ def create_form(
     user: User = Depends(require_permission("website.forms")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     slug = normalize_slug(data.slug or data.name)
     try:
         validate_slug(slug)
@@ -802,7 +798,7 @@ def create_form(
 
 @router.get("/forms/{form_id}", response_model=WebsiteFormResponse)
 def get_form(form_id: int, user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     form = _get_form(db, form_id, company.id)
     return _form_response(form)
 
@@ -814,7 +810,7 @@ def update_form(
     user: User = Depends(require_permission("website.forms")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     form = _get_form(db, form_id, company.id)
     if data.name is not None:
         form.name = data.name.strip()
@@ -842,7 +838,7 @@ def update_form(
 
 @router.get("/blog", response_model=WebsiteBlogListResponse)
 def list_blog_posts(user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     posts = (
         db.query(WebsiteBlogPost)
         .filter(WebsiteBlogPost.company_id == company.id)
@@ -871,7 +867,7 @@ def create_blog_post(
     user: User = Depends(require_permission("website.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     slug = normalize_slug(data.slug or data.title)
     try:
         validate_slug(slug)
@@ -900,7 +896,7 @@ def create_blog_post(
 
 @router.get("/blog/{post_id}", response_model=WebsiteBlogResponse)
 def get_blog_post(post_id: int, user: User = Depends(require_permission("website.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     post = _get_blog_post(db, post_id, company.id)
     return _blog_response(db, post)
 
@@ -912,7 +908,7 @@ def update_blog_post(
     user: User = Depends(require_permission("website.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     post = _get_blog_post(db, post_id, company.id)
     if data.title is not None:
         post.title = data.title.strip()
@@ -950,7 +946,7 @@ def publish_blog_post(
     user: User = Depends(require_permission("website.publish")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     post = _get_blog_post(db, post_id, company.id)
     post.status = "published"
     post.published_at = _utcnow()
@@ -973,7 +969,7 @@ def unpublish_blog_post(
     user: User = Depends(require_permission("website.publish")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     post = _get_blog_post(db, post_id, company.id)
     post.status = "draft"
     db.commit()
@@ -987,7 +983,7 @@ def delete_blog_post(
     user: User = Depends(require_permission("website.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     post = _get_blog_post(db, post_id, company.id)
     if post.status == "published":
         post.status = "archived"

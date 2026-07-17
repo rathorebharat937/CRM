@@ -11,6 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from manufacturing_config import (
     BOM_STATUSES,
@@ -77,11 +78,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> ManufacturingSettings:
@@ -517,7 +513,7 @@ def manufacturing_dashboard(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -569,7 +565,7 @@ def get_manufacturing_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -580,7 +576,7 @@ def update_manufacturing_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     data = body.model_dump(exclude_unset=True)
     for key, value in data.items():
@@ -604,7 +600,7 @@ def list_boms(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -645,7 +641,7 @@ def create_bom(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.manage_bom")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -695,7 +691,7 @@ def get_bom(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     return _bom_response(_get_bom(db, company.id, bom_id))
@@ -709,7 +705,7 @@ def update_bom(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.manage_bom")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     bom = _get_bom(db, company.id, bom_id)
@@ -756,7 +752,7 @@ def activate_bom(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.manage_bom")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     bom = _get_bom(db, company.id, bom_id)
@@ -790,7 +786,7 @@ def explode_bom(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     bom = _get_bom(db, company.id, bom_id)
@@ -811,7 +807,7 @@ def list_work_orders(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -837,7 +833,7 @@ def create_work_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.create_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -898,7 +894,7 @@ def create_work_order_from_sales_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.create_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -942,7 +938,7 @@ def get_work_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     return _wo_response(_get_work_order(db, company.id, wo_id))
@@ -956,7 +952,7 @@ def update_work_order_status(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.release_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     wo = _get_work_order(db, company.id, wo_id)
@@ -1021,7 +1017,7 @@ def issue_materials(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.issue_materials")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     wo = _get_work_order(db, company.id, wo_id)
@@ -1103,7 +1099,7 @@ def receive_finished_goods(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.receive_fg")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     wo = _get_work_order(db, company.id, wo_id)
@@ -1164,7 +1160,7 @@ def list_quality_inspections(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -1203,7 +1199,7 @@ def get_quality_inspection(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     insp = (
@@ -1241,7 +1237,7 @@ def submit_quality_inspection(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("manufacturing.quality")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 

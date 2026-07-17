@@ -8,6 +8,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from inventory_config import (
     ADJUSTMENT_REASON_LABELS,
@@ -42,11 +43,8 @@ from schemas import (
 router = APIRouter(prefix="/inventory", tags=["inventory"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing inventory")
-    return company
+def _get_company(db: Session, user: User) -> Company:
+    return get_current_company(db, user)
 
 
 def _float(value: Decimal | None) -> float:
@@ -265,8 +263,8 @@ def adjustment_reasons(_: User = Depends(require_permission("inventory.view"))):
 
 
 @router.get("/stats/summary", response_model=InventoryStatsResponse)
-def stats(_: User = Depends(require_permission("inventory.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("inventory.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -316,10 +314,10 @@ def list_movements(
     movement_type: str | None = None,
     product_id: int | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("inventory.view")),
+    user: User = Depends(require_permission("inventory.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(StockMovement)
         .options(joinedload(StockMovement.product), joinedload(StockMovement.recorded_by))
@@ -342,10 +340,10 @@ def list_movements(
 def low_stock(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("inventory.view")),
+    user: User = Depends(require_permission("inventory.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     products = (
         db.query(Product)
         .options(joinedload(Product.stock_movements))
@@ -372,10 +370,10 @@ def list_inventory(
     category: str | None = None,
     inventory_status: str | None = None,
     tracked_only: bool = True,
-    _: User = Depends(require_permission("inventory.view")),
+    user: User = Depends(require_permission("inventory.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = db.query(Product).options(joinedload(Product.stock_movements)).filter(Product.company_id == company.id)
     if tracked_only:
         query = query.filter(Product.inventory_tracked.is_(True))
@@ -400,10 +398,10 @@ def list_inventory(
 @router.get("/products/{product_id}", response_model=InventoryProductResponse)
 def get_inventory_product(
     product_id: int,
-    _: User = Depends(require_permission("inventory.view")),
+    user: User = Depends(require_permission("inventory.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
     movements = (
         db.query(StockMovement)
@@ -423,7 +421,7 @@ def enable_tracking(
     user: User = Depends(require_permission("inventory.enable_tracking")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
     if product.inventory_tracked:
         raise HTTPException(status_code=400, detail="Inventory tracking already enabled")
@@ -443,7 +441,7 @@ def update_settings(
     user: User = Depends(require_permission("inventory.manage_settings")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
     if not product.inventory_tracked:
         raise HTTPException(status_code=400, detail="Product is not inventory-tracked")
@@ -464,7 +462,7 @@ def record_opening_stock(
     user: User = Depends(require_permission("inventory.record_opening")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
     _apply_movement(
         db, product, user, "opening", payload.quantity, payload.unit_valuation, payload.movement_date,
@@ -483,7 +481,7 @@ def record_movement(
     user: User = Depends(require_permission("inventory.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
 
     perm_map = {

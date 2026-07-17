@@ -9,6 +9,7 @@ from activity import log_activity
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, User
 from schemas import CompanyCreateRequest, CompanyResponse, CompanyUpdateRequest
+from tenant_utils import get_current_company
 
 router = APIRouter(prefix="/admin", tags=["company"])
 
@@ -35,13 +36,10 @@ def _normalize_tax_ids(data: dict) -> dict:
 
 @router.get("/company", response_model=CompanyResponse)
 def get_company(
-    _: User = Depends(require_permission("company.view")),
+    user: User = Depends(require_permission("company.view")),
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not configured yet")
-    return company
+    return get_current_company(db, user)
 
 
 @router.post("/company", response_model=CompanyResponse)
@@ -51,14 +49,19 @@ def create_company(
     admin: User = Depends(require_permission("company.edit")),
     db: Session = Depends(get_db),
 ):
-    if db.query(Company).first():
-        raise HTTPException(status_code=400, detail="Company already exists")
+    if admin.company_id is not None:
+        raise HTTPException(
+            status_code=400,
+            detail="Company profile already exists for this workspace",
+        )
 
     payload = _normalize_tax_ids(data.model_dump())
     _validate_tax_ids(payload.get("gstin"), payload.get("pan"))
 
     company = Company(**payload)
     db.add(company)
+    db.flush()
+    admin.company_id = company.id
     db.commit()
     db.refresh(company)
 
@@ -81,9 +84,7 @@ def update_company(
     admin: User = Depends(require_permission("company.edit")),
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=404, detail="Company not configured yet")
+    company = get_current_company(db, admin)
 
     payload = _normalize_tax_ids(data.model_dump())
     _validate_tax_ids(payload.get("gstin"), payload.get("pan"))

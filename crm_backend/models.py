@@ -1368,9 +1368,13 @@ class FollowUpReminder(Base):
 
 class NumberingConfiguration(Base):
     __tablename__ = "numbering_configurations"
+    __table_args__ = (
+        UniqueConstraint("company_id", "entity_name", name="uq_numbering_configurations_company_entity"),
+    )
 
     id = Column(Integer, primary_key=True)
-    entity_name = Column(String(50), nullable=False, unique=True, index=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    entity_name = Column(String(50), nullable=False, index=True)
     prefix = Column(String(20), nullable=False)
     starting_number = Column(Integer, nullable=False, default=1)
     current_number = Column(Integer, nullable=False, default=0)

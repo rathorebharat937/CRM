@@ -7,6 +7,7 @@ from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from models import (
@@ -72,11 +73,6 @@ def _today_start() -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing projects")
-    return company
 
 
 def _validate_project_status(status: str) -> None:
@@ -464,8 +460,8 @@ def project_meta(_: User = Depends(require_permission("projects.view")), db: Ses
 
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
-def project_assignees(_: User = Depends(require_permission("projects.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def project_assignees(user: User = Depends(require_permission("projects.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(User.company_id == company.id, User.role.in_(STAFF_ROLES), User.status == "active")
@@ -484,7 +480,7 @@ def my_tasks(
     current_user: User = Depends(require_permission("projects.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     q = (
         db.query(ProjectTask, Project)
         .join(Project, ProjectTask.project_id == Project.id)
@@ -546,7 +542,7 @@ def contact_project_summary(
     current_user: User = Depends(require_permission("projects.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     contact = db.query(Contact).filter(Contact.id == contact_id, Contact.company_id == company.id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -588,7 +584,7 @@ def list_projects(
     current_user: User = Depends(require_permission("projects.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     q = (
         db.query(Project)
         .options(
@@ -679,7 +675,7 @@ def create_project(
     current_user: User = Depends(require_permission("projects.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     _validate_project_type(payload.project_type)
     _validate_project_status(payload.status)
     _validate_priority(payload.priority)
@@ -748,7 +744,7 @@ def get_project(
     current_user: User = Depends(require_permission("projects.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     return _project_detail_resp(project)
@@ -762,7 +758,7 @@ def update_project(
     current_user: User = Depends(require_permission("projects.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
 
@@ -826,7 +822,7 @@ def delete_project(
     current_user: User = Depends(require_permission("projects.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     if project.status != "draft":
@@ -853,7 +849,7 @@ def change_project_status(
     current_user: User = Depends(require_permission("projects.close")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     _validate_project_status(payload.status)
@@ -896,7 +892,7 @@ def add_project_member(
     current_user: User = Depends(require_permission("projects.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     _validate_member_role(payload.role)
@@ -940,7 +936,7 @@ def remove_project_member(
     current_user: User = Depends(require_permission("projects.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
 
@@ -977,7 +973,7 @@ def create_task(
     current_user: User = Depends(require_permission("projects.manage_tasks")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     if not _can_manage_tasks(current_user, db, project):
@@ -1051,7 +1047,7 @@ def update_task(
     current_user: User = Depends(require_permission("projects.manage_tasks")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
 
@@ -1144,7 +1140,7 @@ def delete_task(
     current_user: User = Depends(require_permission("projects.manage_tasks")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, project_id, company.id)
     _ensure_project_access(db, current_user, project)
     if not _can_manage_tasks(current_user, db, project):
@@ -1178,7 +1174,7 @@ def log_project_export(
     current_user: User = Depends(require_permission("projects.export")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     project = _get_project(db, payload.project_id, company.id)
     _ensure_project_access(db, current_user, project)
     log_activity(

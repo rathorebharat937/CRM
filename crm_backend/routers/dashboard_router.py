@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session
 
 from auth_utils import get_db, require_permission
 from deal_config import PIPELINE_STAGES
-from models import ClientNote, Company, Deal, FollowUpReminder, Invoice, Lead, Project, ProjectTask, Quotation, User
+from models import ClientNote, Deal, FollowUpReminder, Invoice, Lead, Project, ProjectTask, Quotation, User
 from permissions import role_has_permission
 from projects_config import OPEN_TASK_STATUSES
 from schemas import DashboardKpiResponse
+from tenant_utils import get_current_company
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -21,9 +22,7 @@ def dashboard_kpis(
     user: User = Depends(require_permission("dashboard.view")),
     db: Session = Depends(get_db),
 ):
-    company = db.query(Company).first()
-    if not company:
-        return DashboardKpiResponse()
+    company = get_current_company(db, user)
 
     now = datetime.now(timezone.utc)
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)

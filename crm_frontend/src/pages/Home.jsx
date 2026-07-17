@@ -31,9 +31,9 @@ function Home() {
         <nav className="crm-landing-topnav">
           <a href="#apps">Apps</a>
           <a href="#sign-in">Sign in</a>
-          <a href="#sign-in" className="crm-landing-cta">
-            Get started
-          </a>
+          <Link to="/register-company" className="crm-landing-cta">
+            Start free
+          </Link>
         </nav>
       </header>
 
@@ -57,12 +57,12 @@ function Home() {
           ))}
         </div>
         <div className="crm-landing-hero-actions">
-          <a href="#sign-in" className="crm-btn crm-btn-primary">
-            Choose your workspace
-          </a>
-          <Link to="/user-signup" className="crm-btn crm-btn-ghost">
-            Create portal account
+          <Link to="/register-company" className="crm-btn crm-btn-primary">
+            Register your business
           </Link>
+          <a href="#sign-in" className="crm-btn crm-btn-ghost">
+            Staff login
+          </a>
         </div>
       </section>
 
@@ -146,10 +146,10 @@ function Home() {
           ))}
         </div>
         <p className="crm-landing-user-link">
-          External portal user?{" "}
-          <Link to="/user-signup">Create account</Link>
+          Already registered?{" "}
+          <Link to="/admin-login">Admin sign in</Link>
           {" · "}
-          <Link to="/user-login">Portal sign in</Link>
+          <Link to="/user-login">Client portal</Link>
         </p>
       </section>
 

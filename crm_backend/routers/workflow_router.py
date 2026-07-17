@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, User, Workflow, WorkflowRun, WorkflowSettings
 from services.workflow_engine import (
@@ -50,11 +51,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> WorkflowSettings:
@@ -164,9 +160,9 @@ def _load_workflow(db: Session, company_id: int, workflow_id: int) -> Workflow:
 @router.get("/settings", response_model=WorkflowSettingsResponse)
 def get_settings(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.manage_settings")),
+    user: User = Depends(require_permission("workflows.manage_settings")),
 ):
-    return _settings_response(_get_settings(db, _get_company(db)))
+    return _settings_response(_get_settings(db, get_current_company(db, user)))
 
 
 @router.put("/settings", response_model=WorkflowSettingsResponse)
@@ -176,7 +172,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
@@ -195,9 +191,9 @@ def update_settings(
 @router.get("/dashboard", response_model=WorkflowDashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.view")),
+    user: User = Depends(require_permission("workflows.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     today = _utcnow().date()
     active_count = (
@@ -280,7 +276,7 @@ def duplicate_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     tpl = next((t for t in WORKFLOW_TEMPLATES if t["key"] == template_key), None)
     if not tpl:
@@ -320,9 +316,9 @@ def list_workflows(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.view")),
+    user: User = Depends(require_permission("workflows.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = db.query(Workflow).filter(Workflow.company_id == company.id)
     if module:
         q = q.filter(Workflow.module == module)
@@ -340,7 +336,7 @@ def create_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     _validate_workflow_payload(payload.module, payload.trigger_type, payload.actions_json)
     wf = Workflow(
@@ -378,9 +374,9 @@ def list_runs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.view")),
+    user: User = Depends(require_permission("workflows.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = (
         db.query(WorkflowRun, Workflow.name)
         .join(Workflow, Workflow.id == WorkflowRun.workflow_id)
@@ -402,9 +398,9 @@ def list_runs(
 def get_run(
     run_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.view")),
+    user: User = Depends(require_permission("workflows.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     row = (
         db.query(WorkflowRun, Workflow.name)
@@ -437,9 +433,9 @@ def get_run(
 def get_workflow(
     workflow_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("workflows.view")),
+    user: User = Depends(require_permission("workflows.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _workflow_response(_load_workflow(db, company.id, workflow_id))
 
 
@@ -451,7 +447,7 @@ def update_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.edit")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     wf = _load_workflow(db, company.id, workflow_id)
     if wf.is_active:
@@ -485,7 +481,7 @@ def delete_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.delete")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     wf = _load_workflow(db, company.id, workflow_id)
     if wf.is_active:
         raise HTTPException(status_code=400, detail="Deactivate workflow before deleting")
@@ -509,7 +505,7 @@ def duplicate_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     src = _load_workflow(db, company.id, workflow_id)
     wf = Workflow(
@@ -547,7 +543,7 @@ def activate_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.activate")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     wf = _load_workflow(db, company.id, workflow_id)
@@ -580,7 +576,7 @@ def deactivate_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.activate")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     wf = _load_workflow(db, company.id, workflow_id)
     wf.is_active = False
@@ -604,7 +600,7 @@ def test_workflow(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("workflows.test")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     wf = _load_workflow(db, company.id, workflow_id)
     runs = process_event(

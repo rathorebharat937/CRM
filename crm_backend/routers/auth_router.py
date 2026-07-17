@@ -23,10 +23,13 @@ from schemas import (
     ChangePasswordRequest,
     LoginRequest,
     ProfileUpdateRequest,
+    RegisterCompanyRequest,
+    RegisterCompanyResponse,
     SignupRequest,
     TokenResponse,
     UserProfileResponse,
 )
+from services.tenant_bootstrap_service import create_company_with_admin
 
 router = APIRouter(tags=["auth"])
 from config import FRONTEND_URL
@@ -41,39 +44,62 @@ def _token_response(user: User, message: str, db: Session) -> TokenResponse:
         role=user.role,
         name=user.name,
         email=user.email,
+        company_id=user.company_id,
         permissions=get_permissions_for_role(db, user.role),
+    )
+
+
+@router.post("/register-company", response_model=RegisterCompanyResponse)
+def register_company(data: RegisterCompanyRequest, request: Request, db: Session = Depends(get_db)):
+    email = data.owner_email.lower()
+    if db.query(User).filter(User.email == email).first():
+        raise HTTPException(status_code=400, detail="Email already registered")
+
+    display_name = (data.company_display_name or data.company_legal_name).strip()
+    try:
+        company, admin = create_company_with_admin(
+            db,
+            legal_name=data.company_legal_name.strip(),
+            display_name=display_name,
+            owner_name=data.owner_name,
+            owner_email=email,
+            password_hash=hash_password(data.password),
+            phone=data.phone,
+        )
+        db.commit()
+        db.refresh(company)
+        db.refresh(admin)
+    except Exception:
+        db.rollback()
+        raise
+
+    log_activity(
+        db,
+        "company_registered",
+        user_id=admin.id,
+        email=admin.email,
+        details=f"Registered company {company.display_name}",
+        ip_address=get_client_ip(request),
+    )
+
+    return RegisterCompanyResponse(
+        access_token=create_access_token(admin),
+        message="Company registered successfully",
+        role=admin.role,
+        name=admin.name,
+        email=admin.email,
+        company_id=company.id,
+        company_name=company.display_name,
+        permissions=get_permissions_for_role(db, admin.role),
     )
 
 
 @router.post("/signup", response_model=TokenResponse)
 def signup(data: SignupRequest, request: Request, db: Session = Depends(get_db)):
-    existing = db.query(User).filter(User.email == data.email.lower()).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-
-    company = db.query(Company).first()
-    user = User(
-        name=data.name.strip(),
-        email=data.email.lower(),
-        phone=data.phone,
-        password=hash_password(data.password),
-        role="User",
-        status="active",
-        company_id=company.id if company else None,
+    raise HTTPException(
+        status_code=403,
+        detail="Public portal signup is disabled. Register your business or ask your admin for an invite.",
     )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-
-    log_activity(
-        db,
-        "signup",
-        user_id=user.id,
-        email=user.email,
-        ip_address=get_client_ip(request),
-    )
-
-    return _token_response(user, "Signup Success", db)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -113,6 +139,12 @@ def login(data: LoginRequest, request: Request, db: Session = Depends(get_db)):
             ip_address=ip,
         )
         raise HTTPException(status_code=401, detail="Invalid Password")
+
+    if user.role != "User" and user.company_id is None:
+        raise HTTPException(
+            status_code=403,
+            detail="No company workspace assigned. Register your business or contact support.",
+        )
 
     user.last_login_at = datetime.now(timezone.utc)
     db.commit()

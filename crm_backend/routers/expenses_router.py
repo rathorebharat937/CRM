@@ -13,6 +13,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from expense_config import (
@@ -55,11 +56,6 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE = 5 * 1024 * 1024
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing expenses")
-    return company
 
 
 def _float(v) -> float:
@@ -207,8 +203,8 @@ def payment_modes(_: User = Depends(require_permission("expenses.view"))):
 
 
 @router.get("/stats/summary", response_model=ExpenseStatsResponse)
-def stats(_: User = Depends(require_permission("expenses.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("expenses.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
@@ -249,10 +245,10 @@ def stats(_: User = Depends(require_permission("expenses.view")), db: Session = 
 def approval_queue(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("expenses.approve")),
+    user: User = Depends(require_permission("expenses.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Expense)
         .options(
@@ -280,7 +276,7 @@ def list_expenses(
     user: User = Depends(require_permission("expenses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Expense)
         .options(
@@ -319,7 +315,7 @@ def create_expense(
     user: User = Depends(require_permission("expenses.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _validate_category(payload.category)
     _validate_payment_mode(payload.payment_mode)
     if payload.deal_id:
@@ -358,8 +354,8 @@ def create_expense(
 
 
 @router.get("/{expense_id}", response_model=ExpenseResponse)
-def get_expense(expense_id: int, _: User = Depends(require_permission("expenses.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def get_expense(expense_id: int, user: User = Depends(require_permission("expenses.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     return _expense_resp(_get_expense(db, expense_id, company.id))
 
 
@@ -371,7 +367,7 @@ def update_expense(
     user: User = Depends(require_permission("expenses.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if not _can_edit(expense, user, db):
         raise HTTPException(status_code=403, detail="Not allowed to edit this expense")
@@ -408,7 +404,7 @@ def delete_expense(
     user: User = Depends(require_permission("expenses.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft expenses can be deleted")
@@ -426,7 +422,7 @@ def submit_expense(
     user: User = Depends(require_permission("expenses.submit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.submitted_by_id != user.id and not role_has_permission(db, user.role, "expenses.edit_all"):
         raise HTTPException(status_code=403, detail="Only the submitter can submit this expense")
@@ -455,7 +451,7 @@ def approve_expense(
     user: User = Depends(require_permission("expenses.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="Expense is not pending approval")
@@ -479,7 +475,7 @@ def reject_expense(
     user: User = Depends(require_permission("expenses.reject")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="Expense is not pending approval")
@@ -501,7 +497,7 @@ def mark_paid(
     user: User = Depends(require_permission("expenses.mark_paid")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status != "approved":
         raise HTTPException(status_code=400, detail="Only approved expenses can be marked paid")
@@ -521,7 +517,7 @@ def cancel_expense(
     user: User = Depends(require_permission("expenses.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status in {"paid", "cancelled"}:
         raise HTTPException(status_code=400, detail="Expense cannot be cancelled")
@@ -542,7 +538,7 @@ async def upload_attachment(
     user: User = Depends(require_permission("expenses.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     if expense.status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Cannot add proof to a non-editable expense")
@@ -587,10 +583,10 @@ async def upload_attachment(
 def download_attachment(
     expense_id: int,
     attachment_id: int,
-    _: User = Depends(require_permission("expenses.view")),
+    user: User = Depends(require_permission("expenses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     expense = _get_expense(db, expense_id, company.id)
     attachment = next((a for a in expense.attachments if a.id == attachment_id), None)
     if not attachment:

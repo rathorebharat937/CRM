@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from models import Company, Contact, ContactActivity, ContactNote, User
@@ -48,15 +49,6 @@ def _normalize_tax(data: dict) -> dict:
         data["pan"] = data["pan"].upper()
     return data
 
-
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(
-            status_code=400,
-            detail="Company must be configured before managing contacts",
-        )
-    return company
 
 
 def _get_contact(db: Session, contact_id: int, company_id: int) -> Contact:
@@ -124,10 +116,10 @@ def _contact_to_response(contact: Contact) -> ContactResponse:
 
 @router.get("/stats/summary", response_model=ContactStatsResponse)
 def contact_stats(
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     total = (
         db.query(func.count(Contact.id))
         .filter(Contact.company_id == company.id)
@@ -154,10 +146,10 @@ def contact_stats(
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
 def list_assignees(
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(
@@ -181,10 +173,10 @@ def list_contacts(
     status: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Contact)
         .options(joinedload(Contact.assigned_to))
@@ -227,10 +219,10 @@ def list_contacts(
 @router.get("/{contact_id}", response_model=ContactResponse)
 def get_contact(
     contact_id: int,
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _contact_to_response(_get_contact(db, contact_id, company.id))
 
 
@@ -241,7 +233,7 @@ def create_contact(
     user: User = Depends(require_permission("contacts.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
 
     if data.contact_type not in CONTACT_TYPES:
         raise HTTPException(status_code=400, detail="Invalid contact type")
@@ -281,7 +273,7 @@ def update_contact(
     user: User = Depends(require_permission("contacts.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contact = _get_contact(db, contact_id, company.id)
 
     if data.contact_type not in CONTACT_TYPES:
@@ -319,10 +311,10 @@ def update_contact(
 @router.get("/{contact_id}/notes", response_model=list[ContactNoteResponse])
 def list_notes(
     contact_id: int,
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _get_contact(db, contact_id, company.id)
     notes = (
         db.query(ContactNote)
@@ -352,7 +344,7 @@ def add_note(
     user: User = Depends(require_permission("contacts.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contact = _get_contact(db, contact_id, company.id)
 
     note = ContactNote(
@@ -386,10 +378,10 @@ def add_note(
 @router.get("/{contact_id}/activities", response_model=list[ContactActivityResponse])
 def list_activities(
     contact_id: int,
-    _: User = Depends(require_permission("contacts.view")),
+    user: User = Depends(require_permission("contacts.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _get_contact(db, contact_id, company.id)
     activities = (
         db.query(ContactActivity)
@@ -421,7 +413,7 @@ def add_activity(
     user: User = Depends(require_permission("contacts.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contact = _get_contact(db, contact_id, company.id)
 
     if data.activity_type not in ACTIVITY_TYPES:
@@ -466,7 +458,7 @@ def delete_contact(
     user: User = Depends(require_permission("contacts.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contact = _get_contact(db, contact_id, company.id)
     contact.status = "inactive"
     db.commit()

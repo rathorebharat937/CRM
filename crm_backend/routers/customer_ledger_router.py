@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_current_user, get_db
 from customer_ledger_config import (
     CREDIT_INVOICE_TYPES,
@@ -51,11 +52,6 @@ def _float(v) -> float:
     return 0.0 if v is None else float(v)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before viewing customer ledger")
-    return company
 
 
 def _has_any_permission(db: Session, role: str, codes: tuple[str, ...]) -> bool:
@@ -473,7 +469,7 @@ def ledger_index(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     now = datetime.now(timezone.utc)
 
     invoices = _ledger_invoices_query(db, company.id).all()
@@ -593,7 +589,7 @@ def unassigned_receivables(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     now = datetime.now(timezone.utc)
     invoices = _ledger_invoices_query(db, company.id, unassigned=True).order_by(Invoice.issue_date.desc()).all()
 
@@ -662,7 +658,7 @@ def contact_summary(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     contact = db.query(Contact).filter(Contact.id == contact_id, Contact.company_id == company.id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")
@@ -702,7 +698,7 @@ def customer_statement(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     contact = db.query(Contact).filter(Contact.id == contact_id, Contact.company_id == company.id).first()
     if not contact:
         raise HTTPException(status_code=404, detail="Contact not found")

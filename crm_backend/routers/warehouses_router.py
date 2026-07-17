@@ -8,6 +8,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from inventory_config import (
     ADJUSTMENT_REASONS,
@@ -65,11 +66,6 @@ MOVEMENT_PERMISSIONS = {
 }
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing warehouses")
-    return company
 
 
 def _float(value) -> float:
@@ -496,8 +492,8 @@ def movement_types(_: User = Depends(require_permission("warehouses.view"))):
 
 
 @router.get("/stats/summary", response_model=WarehouseStatsResponse)
-def stats(_: User = Depends(require_permission("warehouses.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("warehouses.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
 
     stocks = (
@@ -595,10 +591,10 @@ def list_locations(
     warehouse_id: int | None = None,
     has_stock: bool | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("warehouses.view")),
+    user: User = Depends(require_permission("warehouses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
     query = db.query(WarehouseLocation).filter(WarehouseLocation.company_id == company.id)
 
@@ -676,7 +672,7 @@ def create_location(
     user: User = Depends(require_permission("warehouses.manage_locations")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _validate_location_type(body.location_type)
     _validate_location_status(body.status)
 
@@ -732,10 +728,10 @@ def create_location(
 @router.get("/locations/{location_id}", response_model=WarehouseLocationDetailResponse)
 def get_location(
     location_id: int,
-    _: User = Depends(require_permission("warehouses.view")),
+    user: User = Depends(require_permission("warehouses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     location = _get_location(db, location_id, company.id)
     cache = _location_cache(db, company.id)
     location.parent = cache.get(location.parent_id) if location.parent_id else None
@@ -788,7 +784,7 @@ def update_location(
     user: User = Depends(require_permission("warehouses.manage_locations")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     location = _get_location(db, location_id, company.id)
 
     if body.status:
@@ -838,10 +834,10 @@ def list_stock(
     out_of_stock: bool | None = None,
     category: str | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("warehouses.view_stock")),
+    user: User = Depends(require_permission("warehouses.view_stock")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
     query = (
         db.query(LocationStock)
@@ -887,10 +883,10 @@ def list_stock(
 @router.get("/stock/product/{product_id}", response_model=LocationStockListResponse)
 def product_stock_by_location(
     product_id: int,
-    _: User = Depends(require_permission("warehouses.view_stock")),
+    user: User = Depends(require_permission("warehouses.view_stock")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _get_product(db, product_id, company.id)
     cache = _location_cache(db, company.id)
     stocks = (
@@ -911,10 +907,10 @@ def list_movements(
     location_id: int | None = None,
     product_id: int | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("warehouses.view")),
+    user: User = Depends(require_permission("warehouses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
     query = (
         db.query(LocationStockMovement)
@@ -963,7 +959,7 @@ def record_movement(
     if not perm or not role_has_permission(db, user.role, perm):
         raise HTTPException(status_code=403, detail="Insufficient permissions for this movement type")
 
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, body.product_id, company.id)
     location = _get_location(db, body.location_id, company.id)
 
@@ -1019,7 +1015,7 @@ def transfer_stock(
     if body.source_location_id == body.destination_location_id:
         raise HTTPException(status_code=400, detail="Source and destination must be different")
 
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, body.product_id, company.id)
     source = _get_location(db, body.source_location_id, company.id)
     dest = _get_location(db, body.destination_location_id, company.id)
@@ -1112,10 +1108,10 @@ def list_transfers(
     limit: int = Query(20, ge=1, le=100),
     search: str | None = None,
     product_id: int | None = None,
-    _: User = Depends(require_permission("warehouses.view")),
+    user: User = Depends(require_permission("warehouses.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
     query = (
         db.query(LocationStockMovement)
@@ -1169,10 +1165,10 @@ def list_transfers(
 def low_stock(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("warehouses.view_stock")),
+    user: User = Depends(require_permission("warehouses.view_stock")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     cache = _location_cache(db, company.id)
     stocks = (
         db.query(LocationStock)

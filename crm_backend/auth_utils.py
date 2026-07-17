@@ -40,6 +40,7 @@ def create_access_token(user: User) -> str:
         "sub": str(user.id),
         "role": user.role,
         "email": user.email,
+        "company_id": user.company_id,
         "exp": expire,
     }
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
@@ -84,6 +85,11 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
     if user.status != "active":
         raise HTTPException(status_code=403, detail="Account is inactive")
+
+    token_company_id = payload.get("company_id")
+    if token_company_id is not None and user.company_id != token_company_id:
+        raise HTTPException(status_code=401, detail="Session expired — please sign in again")
+
     return user
 
 

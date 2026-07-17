@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, Product
 from models import User
@@ -16,15 +17,6 @@ router = APIRouter(prefix="/products", tags=["products"])
 
 PRODUCT_STATUSES = {"active", "inactive"}
 
-
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(
-            status_code=400,
-            detail="Company must be configured before managing products",
-        )
-    return company
 
 
 def _to_float(value) -> float | None:
@@ -78,10 +70,10 @@ def _get_product(db: Session, product_id: int, company_id: int) -> Product:
 
 @router.get("/categories")
 def list_categories(
-    _: User = Depends(require_permission("products.view")),
+    user: User = Depends(require_permission("products.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(Product.category)
         .filter(Product.company_id == company.id, Product.category.isnot(None))
@@ -100,10 +92,10 @@ def list_products(
     status: str | None = None,
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("products.view")),
+    user: User = Depends(require_permission("products.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = db.query(Product).filter(Product.company_id == company.id)
 
     if status:
@@ -141,10 +133,10 @@ def list_products(
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(
     product_id: int,
-    _: User = Depends(require_permission("products.view")),
+    user: User = Depends(require_permission("products.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _product_response(_get_product(db, product_id, company.id))
 
 
@@ -155,7 +147,7 @@ def create_product(
     user: User = Depends(require_permission("products.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     if data.status not in PRODUCT_STATUSES:
         raise HTTPException(status_code=400, detail="Status must be active or inactive")
 
@@ -196,7 +188,7 @@ def update_product(
     user: User = Depends(require_permission("products.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
 
     if data.status not in PRODUCT_STATUSES:
@@ -240,7 +232,7 @@ def delete_product(
     user: User = Depends(require_permission("products.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = _get_product(db, product_id, company.id)
     product.status = "inactive"
     db.commit()

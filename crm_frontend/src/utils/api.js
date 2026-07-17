@@ -71,6 +71,12 @@ export function saveSession(data) {
   localStorage.setItem("role", data.role);
   localStorage.setItem("name", data.name);
   localStorage.setItem("email", data.email);
+  if (data.company_id != null) {
+    localStorage.setItem("company_id", String(data.company_id));
+  }
+  if (data.company_name) {
+    localStorage.setItem("company_name", data.company_name);
+  }
   setPermissions(data.permissions || []);
 }
 
@@ -79,6 +85,9 @@ export function clearSession() {
   localStorage.removeItem("role");
   localStorage.removeItem("name");
   localStorage.removeItem("email");
+  localStorage.removeItem("company_id");
+  localStorage.removeItem("company_name");
+  localStorage.removeItem("onboarding_complete");
   clearPermissions();
 }
 

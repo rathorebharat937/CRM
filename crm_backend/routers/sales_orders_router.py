@@ -9,6 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import FRONTEND_URL, STAFF_ROLES
 from models import (
@@ -60,11 +61,6 @@ router = APIRouter(prefix="/sales-orders", tags=["sales-orders"])
 public_router = APIRouter(prefix="/public/orders", tags=["public-orders"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing sales orders")
-    return company
 
 
 def _decimal(value: float | Decimal | None) -> Decimal:
@@ -554,8 +550,8 @@ def order_statuses(_: User = Depends(require_permission("sales_orders.view"))):
 
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
-def order_assignees(_: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def order_assignees(user: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(User.company_id == company.id, User.role.in_(STAFF_ROLES), User.status == "active")
@@ -566,8 +562,8 @@ def order_assignees(_: User = Depends(require_permission("sales_orders.view")), 
 
 
 @router.get("/stats/summary", response_model=SalesOrderStatsResponse)
-def order_stats(_: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def order_stats(user: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     rows = (
         db.query(SalesOrder.status, func.count(SalesOrder.id))
         .filter(SalesOrder.company_id == company.id)
@@ -648,10 +644,10 @@ def list_orders(
     due_in_days: int | None = None,
     sort_by: str = Query("updated_at"),
     sort_dir: str = Query("desc"),
-    _: User = Depends(require_permission("sales_orders.view")),
+    user: User = Depends(require_permission("sales_orders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(SalesOrder)
         .options(
@@ -716,7 +712,7 @@ def create_order(
     user: User = Depends(require_permission("sales_orders.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     if not payload.client_name and not payload.contact_id:
         raise HTTPException(status_code=400, detail="Customer is required")
     order = _build_order(db, company, payload, user, source_type="manual")
@@ -733,7 +729,7 @@ def convert_from_quotation(
     user: User = Depends(require_permission("sales_orders.convert_from_quote")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = (
         db.query(Quotation)
         .options(joinedload(Quotation.line_items))
@@ -767,8 +763,8 @@ def convert_from_quotation(
 
 
 @router.get("/{order_id}", response_model=SalesOrderResponse)
-def get_order(order_id: int, _: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def get_order(order_id: int, user: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     return _order_response(_get_order(db, order_id, company.id))
 
 
@@ -780,7 +776,7 @@ def update_order(
     user: User = Depends(require_permission("sales_orders.edit_draft")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _update_order_fields(order, payload, db)
     db.commit()
@@ -791,7 +787,7 @@ def update_order(
 
 @router.delete("/{order_id}", status_code=204)
 def delete_order(order_id: int, user: User = Depends(require_permission("sales_orders.edit_draft")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft orders can be deleted")
@@ -807,7 +803,7 @@ def send_confirmation(
     user: User = Depends(require_permission("sales_orders.confirm")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft orders can be sent for confirmation")
@@ -858,7 +854,7 @@ def confirm_internal(
     user: User = Depends(require_permission("sales_orders.confirm")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status not in {"draft", "awaiting_confirmation"}:
         raise HTTPException(status_code=400, detail="Order cannot be confirmed from current status")
@@ -879,7 +875,7 @@ def confirm_internal(
 
 @router.post("/{order_id}/begin-preparation", response_model=SalesOrderResponse)
 def begin_preparation(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.update_progress")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _set_status(order, "in_preparation")
     order.preparation_status = "in_progress"
@@ -891,7 +887,7 @@ def begin_preparation(order_id: int, request: Request, user: User = Depends(requ
 
 @router.post("/{order_id}/start-execution", response_model=SalesOrderResponse)
 def start_execution(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.update_progress")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _set_status(order, "in_execution")
     db.commit()
@@ -908,7 +904,7 @@ def update_progress(
     user: User = Depends(require_permission("sales_orders.update_progress")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Cannot update progress on a final order")
@@ -928,7 +924,7 @@ def update_progress(
 
 @router.post("/{order_id}/partial-delivery", response_model=SalesOrderResponse)
 def partial_delivery(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.update_progress")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _set_status(order, "partially_delivered")
     if order.fulfillment_progress < 50:
@@ -941,7 +937,7 @@ def partial_delivery(order_id: int, request: Request, user: User = Depends(requi
 
 @router.post("/{order_id}/mark-delivered", response_model=SalesOrderResponse)
 def mark_delivered(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.update_progress")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _set_status(order, "delivered")
     order.fulfillment_progress = 100
@@ -953,7 +949,7 @@ def mark_delivered(order_id: int, request: Request, user: User = Depends(require
 
 @router.post("/{order_id}/billing-handoff", response_model=SalesOrderResponse)
 def billing_handoff(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.update_progress")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status not in {"confirmed", "delivered", "partially_delivered", "in_execution"}:
         raise HTTPException(status_code=400, detail="Order is not ready for billing handoff")
@@ -973,7 +969,7 @@ def complete_order(
     user: User = Depends(require_permission("sales_orders.update_progress")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     _set_status(order, "completed")
     order.fulfillment_progress = 100
@@ -993,7 +989,7 @@ def hold_order(
     user: User = Depends(require_permission("sales_orders.hold")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Cannot place a final order on hold")
@@ -1015,7 +1011,7 @@ def cancel_order(
     user: User = Depends(require_permission("sales_orders.cancel")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Order is already in a final state")
@@ -1031,7 +1027,7 @@ def cancel_order(
 
 @router.post("/{order_id}/close", response_model=SalesOrderResponse)
 def close_order(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.cancel")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     if order.status not in {"completed", "cancelled"}:
         raise HTTPException(status_code=400, detail="Only completed or cancelled orders can be closed")
@@ -1046,7 +1042,7 @@ def close_order(order_id: int, request: Request, user: User = Depends(require_pe
 
 @router.post("/{order_id}/amendment", response_model=SalesOrderResponse, status_code=201)
 def create_amendment(order_id: int, request: Request, user: User = Depends(require_permission("sales_orders.amend")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     original = _get_order(db, order_id, company.id)
     if original.status in {"draft", "awaiting_confirmation", "cancelled", "closed"}:
         raise HTTPException(status_code=400, detail="Cannot amend orders in this status")
@@ -1139,7 +1135,7 @@ def complete_milestone(
     user: User = Depends(require_permission("sales_orders.update_progress")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     milestone = next((ms for ms in order.milestones if ms.id == milestone_id), None)
     if not milestone:
@@ -1158,8 +1154,8 @@ def complete_milestone(
 
 
 @router.get("/{order_id}/versions", response_model=list[SalesOrderVersionSummary])
-def list_versions(order_id: int, _: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def list_versions(order_id: int, user: User = Depends(require_permission("sales_orders.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     order = _get_order(db, order_id, company.id)
     root_id = order.root_order_id or order.id
     versions = (

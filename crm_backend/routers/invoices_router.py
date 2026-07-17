@@ -9,6 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import FRONTEND_URL, STAFF_ROLES
 from company_branding import build_company_branding
@@ -73,11 +74,6 @@ router = APIRouter(prefix="/invoices", tags=["invoices"])
 public_router = APIRouter(prefix="/public/invoices", tags=["public-invoices"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing invoices")
-    return company
 
 
 def _decimal(v) -> Decimal:
@@ -371,15 +367,15 @@ def statuses(_: User = Depends(require_permission("invoices.view"))):
 
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
-def assignees(_: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def assignees(user: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     staff = db.query(User).filter(User.company_id == company.id, User.role.in_(STAFF_ROLES), User.status == "active").order_by(User.name).all()
     return [StaffAssigneeResponse(id=u.id, name=u.name, email=u.email, role=u.role) for u in staff]
 
 
 @router.get("/stats/summary", response_model=InvoiceStatsResponse)
-def stats(_: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     rows = db.query(Invoice.status, func.count(Invoice.id)).filter(Invoice.company_id == company.id).group_by(Invoice.status).all()
     counts = {s: 0 for s in INVOICE_STATUSES}
     for s, c in rows:
@@ -399,8 +395,8 @@ def stats(_: User = Depends(require_permission("invoices.view")), db: Session = 
 
 @router.get("/review-queue", response_model=InvoiceListResponse)
 def review_queue(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100),
-                 _: User = Depends(require_permission("invoices.review")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+                 user: User = Depends(require_permission("invoices.review")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     q = db.query(Invoice).options(joinedload(Invoice.line_items), joinedload(Invoice.assigned_to)).filter(
         Invoice.company_id == company.id, Invoice.status == "awaiting_review"
     ).order_by(Invoice.updated_at.desc())
@@ -413,8 +409,8 @@ def review_queue(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100
 def list_invoices(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=100), status: str | None = None,
                   source_type: str | None = None, search: str | None = None, owner_id: int | None = None,
                   payment_filter: str | None = None, sort_by: str = "updated_at", sort_dir: str = "desc",
-                  _: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+                  user: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     q = db.query(Invoice).options(joinedload(Invoice.assigned_to), joinedload(Invoice.sales_order),
                                   joinedload(Invoice.quotation), joinedload(Invoice.line_items)).filter(Invoice.company_id == company.id)
     if status:
@@ -447,7 +443,7 @@ def list_invoices(page: int = Query(1, ge=1), limit: int = Query(20, ge=1, le=10
 @router.post("", response_model=InvoiceResponse, status_code=201)
 def create_invoice(payload: InvoiceCreateRequest, request: Request,
                    user: User = Depends(require_permission("invoices.create")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     if not payload.client_name and not payload.contact_id:
         raise HTTPException(status_code=400, detail="Customer is required")
     inv = _build_invoice(db, company, payload, user)
@@ -459,7 +455,7 @@ def create_invoice(payload: InvoiceCreateRequest, request: Request,
 
 @router.post("/from-order/{order_id}", response_model=InvoiceResponse, status_code=201)
 def from_order(order_id: int, request: Request, user: User = Depends(require_permission("invoices.generate_from_order")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = db.query(SalesOrder).options(joinedload(SalesOrder.line_items)).filter(SalesOrder.id == order_id, SalesOrder.company_id == company.id).first()
     if not order:
         raise HTTPException(status_code=404, detail="Sales order not found")
@@ -476,7 +472,7 @@ def from_order(order_id: int, request: Request, user: User = Depends(require_per
 
 @router.post("/from-quotation/{quote_id}", response_model=InvoiceResponse, status_code=201)
 def from_quotation(quote_id: int, request: Request, user: User = Depends(require_permission("invoices.generate_from_order")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = db.query(Quotation).options(joinedload(Quotation.line_items)).filter(Quotation.id == quote_id, Quotation.company_id == company.id).first()
     if not quote:
         raise HTTPException(status_code=404, detail="Quotation not found")
@@ -507,8 +503,8 @@ def invoice_defaults(_: User = Depends(require_permission("invoices.view"))):
 
 
 @router.get("/{invoice_id}", response_model=InvoiceResponse)
-def get_invoice(invoice_id: int, _: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def get_invoice(invoice_id: int, user: User = Depends(require_permission("invoices.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     _check_overdue(inv)
     db.commit()
@@ -518,7 +514,7 @@ def get_invoice(invoice_id: int, _: User = Depends(require_permission("invoices.
 @router.put("/{invoice_id}", response_model=InvoiceResponse)
 def update_invoice(invoice_id: int, payload: InvoiceUpdateRequest, request: Request,
                    user: User = Depends(require_permission("invoices.edit_draft")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Only draft or awaiting review invoices can be edited")
@@ -560,7 +556,7 @@ def delete_invoice(
     user: User = Depends(require_permission("invoices.edit_draft")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft invoices can be deleted")
@@ -579,7 +575,7 @@ def delete_invoice(
 
 @router.post("/{invoice_id}/submit-review", response_model=InvoiceResponse)
 def submit_review(invoice_id: int, request: Request, user: User = Depends(require_permission("invoices.edit_draft")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status != "draft" or not inv.line_items:
         raise HTTPException(status_code=400, detail="Draft with line items required")
@@ -597,7 +593,7 @@ def submit_review(invoice_id: int, request: Request, user: User = Depends(requir
 @router.post("/{invoice_id}/approve", response_model=InvoiceResponse)
 def approve(invoice_id: int, payload: InvoiceReviewRequest, request: Request,
             user: User = Depends(require_permission("invoices.review")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status != "awaiting_review":
         raise HTTPException(status_code=400, detail="Invoice not awaiting review")
@@ -615,7 +611,7 @@ def approve(invoice_id: int, payload: InvoiceReviewRequest, request: Request,
 @router.post("/{invoice_id}/reject-review", response_model=InvoiceResponse)
 def reject_review(invoice_id: int, payload: InvoiceReviewRequest, request: Request,
                   user: User = Depends(require_permission("invoices.review")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     _set_status(inv, "draft")
     inv.review_comments = payload.comments
@@ -625,7 +621,7 @@ def reject_review(invoice_id: int, payload: InvoiceReviewRequest, request: Reque
 
 @router.post("/{invoice_id}/issue", response_model=InvoiceResponse)
 def issue(invoice_id: int, request: Request, user: User = Depends(require_permission("invoices.issue")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status not in {"approved", "draft"}:
         raise HTTPException(status_code=400, detail="Invoice must be approved before issue")
@@ -647,7 +643,7 @@ def issue(invoice_id: int, request: Request, user: User = Depends(require_permis
 @router.post("/{invoice_id}/send", response_model=InvoiceResponse)
 def send_invoice(invoice_id: int, payload: InvoiceSendRequest, request: Request,
                  user: User = Depends(require_permission("invoices.send")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status not in {"issued", "sent", "viewed", "partially_paid", "overdue"}:
         raise HTTPException(status_code=400, detail="Invoice must be issued first")
@@ -678,7 +674,7 @@ def send_invoice(invoice_id: int, payload: InvoiceSendRequest, request: Request,
 @router.post("/{invoice_id}/record-payment", response_model=InvoiceResponse)
 def record_payment(invoice_id: int, payload: InvoicePaymentFields, request: Request,
                    user: User = Depends(require_permission("invoices.record_payment")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status in {"draft", "cancelled", "closed"}:
         raise HTTPException(status_code=400, detail="Cannot record payment on this invoice")
@@ -700,7 +696,7 @@ def record_payment(invoice_id: int, payload: InvoicePaymentFields, request: Requ
 @router.post("/{invoice_id}/credit-note", response_model=InvoiceResponse, status_code=201)
 def credit_note(invoice_id: int, payload: InvoiceReasonRequest, request: Request,
                 user: User = Depends(require_permission("invoices.create_adjustment")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     original = _get_invoice(db, invoice_id, company.id)
     if original.status not in {"issued", "sent", "viewed", "partially_paid", "paid", "overdue"}:
         raise HTTPException(status_code=400, detail="Cannot create credit note for this invoice")
@@ -726,7 +722,7 @@ def credit_note(invoice_id: int, payload: InvoiceReasonRequest, request: Request
 @router.post("/{invoice_id}/cancel", response_model=InvoiceResponse)
 def cancel(invoice_id: int, payload: InvoiceReasonRequest, request: Request,
            user: User = Depends(require_permission("invoices.cancel")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Invoice already finalized")
@@ -742,7 +738,7 @@ def cancel(invoice_id: int, payload: InvoiceReasonRequest, request: Request,
 @router.post("/{invoice_id}/write-off", response_model=InvoiceResponse)
 def write_off(invoice_id: int, payload: InvoiceReasonRequest, request: Request,
               user: User = Depends(require_permission("invoices.write_off")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if _float(inv.outstanding_amount) <= 0:
         raise HTTPException(status_code=400, detail="No outstanding balance")
@@ -758,7 +754,7 @@ def write_off(invoice_id: int, payload: InvoiceReasonRequest, request: Request,
 
 @router.post("/{invoice_id}/close", response_model=InvoiceResponse)
 def close(invoice_id: int, request: Request, user: User = Depends(require_permission("invoices.cancel")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if inv.status not in {"paid", "cancelled", "refunded", "written_off"}:
         raise HTTPException(status_code=400, detail="Invoice not ready to close")
@@ -771,7 +767,7 @@ def close(invoice_id: int, request: Request, user: User = Depends(require_permis
 
 @router.post("/{invoice_id}/reminder", response_model=InvoiceResponse)
 def reminder(invoice_id: int, request: Request, user: User = Depends(require_permission("invoices.send")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     inv = _get_invoice(db, invoice_id, company.id)
     if _float(inv.outstanding_amount) <= 0 or not inv.client_email or not inv.share_token:
         raise HTTPException(status_code=400, detail="Cannot send reminder")

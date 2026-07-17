@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from field_service_config import (
     DEFAULT_NOTIFY_ROLES,
@@ -61,11 +62,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> FieldServiceSettings:
@@ -317,9 +313,9 @@ def _notification_exists_today(db: Session, company_id: int, title: str, link: s
 @router.get("/settings", response_model=FieldServiceSettingsResponse)
 def get_settings_endpoint(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("field_service.view")),
+    user: User = Depends(require_permission("field_service.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -330,7 +326,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
@@ -343,9 +339,9 @@ def update_settings(
 @router.get("/dashboard", response_model=FieldServiceDashboardResponse)
 def field_service_dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("field_service.view")),
+    user: User = Depends(require_permission("field_service.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     _sync_fso_alerts(db, company, settings)
@@ -482,9 +478,9 @@ def list_orders(
     contact_id: int | None = None,
     assigned_to_id: int | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("field_service.view")),
+    user: User = Depends(require_permission("field_service.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     q = (
@@ -513,7 +509,7 @@ def create_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     if body.type not in FSO_TYPES:
@@ -560,9 +556,9 @@ def create_order(
 def get_order(
     order_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("field_service.view")),
+    user: User = Depends(require_permission("field_service.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     return _fso_response(_get_fso(db, company.id, order_id))
@@ -576,7 +572,7 @@ def update_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -603,7 +599,7 @@ def assign_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.dispatch")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -647,7 +643,7 @@ def reschedule_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.dispatch")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -669,7 +665,7 @@ def update_order_status(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.execute")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -715,7 +711,7 @@ def cancel_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.cancel")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -736,7 +732,7 @@ def issue_parts(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.issue_parts")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -793,7 +789,7 @@ def complete_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("field_service.execute")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     order = _get_fso(db, company.id, order_id)
@@ -827,9 +823,9 @@ def get_schedule(
     assigned_to_id: int | None = None,
     unassigned: bool = False,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("field_service.view")),
+    user: User = Depends(require_permission("field_service.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 

@@ -13,7 +13,8 @@ from auth_utils import (
 )
 from permissions_data import ROLE_PERMISSIONS
 from config import STAFF_ROLES
-from models import ActivityLog, Company, Permission, RolePermission, User
+from models import ActivityLog, Permission, RolePermission, User
+from tenant_utils import get_current_company, require_company_record
 from schemas import (
     ActivityLogListResponse,
     ActivityLogResponse,
@@ -54,10 +55,11 @@ def get_roles_matrix(
 @router.get("/users", response_model=list[UserProfileResponse])
 def list_users(
     role: str | None = Query(None),
-    _: User = Depends(require_permission("users.view")),
+    user: User = Depends(require_permission("users.view")),
     db: Session = Depends(get_db),
 ):
-    query = db.query(User).order_by(User.id)
+    company = get_current_company(db, user)
+    query = db.query(User).filter(User.company_id == company.id).order_by(User.id)
     if role:
         query = query.filter(User.role == role)
     return query.all()
@@ -87,10 +89,10 @@ def create_staff_user(
     ).first():
         raise HTTPException(status_code=400, detail="Employee ID already exists")
 
-    company = db.query(Company).first()
+    company = get_current_company(db, admin)
 
     user = User(
-        company_id=company.id if company else None,
+        company_id=company.id,
         employee_id=data.employee_id,
         name=data.name.strip(),
         email=email,
@@ -126,8 +128,7 @@ def update_user(
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    require_company_record(user, get_current_company(db, admin).id, detail="User not found")
 
     if user.role == "User":
         raise HTTPException(
@@ -199,8 +200,7 @@ def reset_user_password(
     db: Session = Depends(get_db),
 ):
     user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    require_company_record(user, get_current_company(db, admin).id, detail="User not found")
 
     user.password = hash_password(data.new_password)
     db.commit()
@@ -227,8 +227,7 @@ def delete_staff_user(
     if user_id == admin.id:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
     user = db.query(User).filter(User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+    require_company_record(user, get_current_company(db, admin).id, detail="User not found")
     if user.role == "User":
         raise HTTPException(status_code=400, detail="Use portal user management for public User accounts")
     email = user.email

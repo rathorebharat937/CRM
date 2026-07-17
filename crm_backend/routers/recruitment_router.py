@@ -7,6 +7,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, JobApplicant, JobOpening, User
 from recruitment_config import APPLICANT_STATUS_LABELS, APPLICANT_STATUSES, JOB_STATUS_LABELS, JOB_STATUSES
@@ -30,11 +31,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _float(v) -> float | None:
@@ -111,10 +107,10 @@ def list_jobs(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     status: str | None = None,
-    _: User = Depends(require_permission("recruitment.view")),
+    user: User = Depends(require_permission("recruitment.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = db.query(JobOpening).filter(JobOpening.company_id == company.id)
     if status:
         query = query.filter(JobOpening.status == status)
@@ -142,7 +138,7 @@ def create_job(
     current_user: User = Depends(require_permission("recruitment.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if payload.status not in JOB_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
     job = JobOpening(
@@ -170,10 +166,10 @@ def create_job(
 @router.get("/jobs/{job_id}", response_model=JobOpeningDetailResponse)
 def get_job(
     job_id: int,
-    _: User = Depends(require_permission("recruitment.view")),
+    user: User = Depends(require_permission("recruitment.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     job = (
         db.query(JobOpening)
         .options(joinedload(JobOpening.applicants))
@@ -197,7 +193,7 @@ def update_job(
     current_user: User = Depends(require_permission("recruitment.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     job = db.query(JobOpening).filter(JobOpening.id == job_id, JobOpening.company_id == company.id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job opening not found")
@@ -223,7 +219,7 @@ def add_applicant(
     current_user: User = Depends(require_permission("recruitment.manage")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     job = db.query(JobOpening).filter(JobOpening.id == job_id, JobOpening.company_id == company.id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job opening not found")

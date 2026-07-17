@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_current_user, get_db
 from inventory_config import DIRECTION_IN, DIRECTION_OUT, OUT_MOVEMENT_TYPES
 from models import Company, Product, StockMovement, User
@@ -195,8 +196,8 @@ def reasons_out(_: User = Depends(_require_view)):
 
 
 @router.get("/stats/summary", response_model=StockMovementStatsResponse)
-def stats(_: User = Depends(_require_view), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(_require_view), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = day_start - timedelta(days=day_start.weekday())
@@ -253,10 +254,10 @@ def list_movements(
     date_from: datetime | None = None,
     date_to: datetime | None = None,
     search: str | None = None,
-    _: User = Depends(_require_view),
+    user: User = Depends(_require_view),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(StockMovement)
         .options(joinedload(StockMovement.product), joinedload(StockMovement.recorded_by))
@@ -297,10 +298,10 @@ def list_movements(
 @router.get("/{movement_id}", response_model=StockMovementExtendedResponse)
 def get_movement(
     movement_id: int,
-    _: User = Depends(_require_view),
+    user: User = Depends(_require_view),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _extended_response(_get_movement(db, movement_id, company.id))
 
 
@@ -311,7 +312,7 @@ def record_stock_in(
     user: User = Depends(_require_record_in),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _record(db, company, user, payload, DIRECTION_IN, request)
 
 
@@ -322,5 +323,5 @@ def record_stock_out(
     user: User = Depends(_require_record_out),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _record(db, company, user, payload, DIRECTION_OUT, request)

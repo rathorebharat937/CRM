@@ -16,6 +16,7 @@ from ai_assistant_schemas import (
     AiAssistantSettingsResponse,
     AiAssistantSettingsUpdateRequest,
 )
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import AiAssistantMessage, AiAssistantSession, AiAssistantSettings, Company, User
 from services.ai_assistant_service import generate_session_code, process_user_message
@@ -23,11 +24,6 @@ from services.ai_assistant_service import generate_session_code, process_user_me
 router = APIRouter(prefix="/ai-assistant", tags=["ai-assistant"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> AiAssistantSettings:
@@ -57,8 +53,8 @@ def _msg(m: AiAssistantMessage) -> AiAssistantMessageResponse:
 
 
 @router.get("/settings", response_model=AiAssistantSettingsResponse)
-def get_settings(db: Session = Depends(get_db), _: User = Depends(require_permission("ai_assistant.view"))):
-    company = _get_company(db)
+def get_settings(db: Session = Depends(get_db), user: User = Depends(require_permission("ai_assistant.view"))):
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     actions = settings.allowed_actions_json or DEFAULT_ACTIONS
     return AiAssistantSettingsResponse(
@@ -73,9 +69,9 @@ def get_settings(db: Session = Depends(get_db), _: User = Depends(require_permis
 def update_settings(
     body: AiAssistantSettingsUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("ai_assistant.manage_settings")),
+    user: User = Depends(require_permission("ai_assistant.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     if body.is_enabled is not None:
         settings.is_enabled = body.is_enabled
@@ -98,7 +94,7 @@ def list_sessions(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_assistant.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(AiAssistantSession)
         .filter(AiAssistantSession.company_id == company.id, AiAssistantSession.user_id == user.id)
@@ -127,7 +123,7 @@ def get_session(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_assistant.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     session = (
         db.query(AiAssistantSession)
         .options(joinedload(AiAssistantSession.messages))
@@ -157,7 +153,7 @@ def chat(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_assistant.chat")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 

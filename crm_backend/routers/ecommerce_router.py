@@ -14,6 +14,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, hash_password, require_permission, verify_password
 from config import FRONTEND_URL, JWT_ALGORITHM, JWT_EXPIRE_HOURS, JWT_SECRET
 from ecommerce_config import (
@@ -99,11 +100,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _resolve_company_by_slug(db: Session, company_slug: str) -> tuple[Company, WebsiteSettings]:
@@ -587,7 +583,7 @@ def _get_store_order(db: Session, order_id: int, company_id: int) -> StoreOrder:
 
 @router.get("/dashboard", response_model=StoreDashboardResponse)
 def ecommerce_dashboard(user: User = Depends(require_permission("ecommerce.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_store_settings(db, company)
     site = db.query(WebsiteSettings).filter(WebsiteSettings.company_id == company.id).first()
     today = _utcnow().date()
@@ -628,7 +624,7 @@ def ecommerce_dashboard(user: User = Depends(require_permission("ecommerce.view"
 
 @router.get("/settings", response_model=StoreSettingsResponse)
 def get_store_settings(user: User = Depends(require_permission("ecommerce.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_store_settings(db, company)
     site = db.query(WebsiteSettings).filter(WebsiteSettings.company_id == company.id).first()
     return _settings_response(settings, site.company_slug if site else None)
@@ -640,7 +636,7 @@ def update_store_settings(
     user: User = Depends(require_permission("ecommerce.manage_settings")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_store_settings(db, company)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(settings, field, value)
@@ -653,7 +649,7 @@ def update_store_settings(
 
 @router.get("/catalog", response_model=list[StoreCatalogItemResponse])
 def list_catalog(user: User = Depends(require_permission("ecommerce.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = db.query(WebsiteSettings).filter(WebsiteSettings.company_id == company.id).first()
     products = db.query(Product).filter(Product.company_id == company.id).order_by(Product.name.asc()).all()
     return [
@@ -681,7 +677,7 @@ def update_catalog_product(
     user: User = Depends(require_permission("ecommerce.manage_catalog")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     site = db.query(WebsiteSettings).filter(WebsiteSettings.company_id == company.id).first()
     product = db.query(Product).filter(Product.id == product_id, Product.company_id == company.id).first()
     if not product:
@@ -717,7 +713,7 @@ def list_orders(
     user: User = Depends(require_permission("ecommerce.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = db.query(StoreOrder).options(joinedload(StoreOrder.items), joinedload(StoreOrder.customer)).filter(StoreOrder.company_id == company.id)
     if status:
         q = q.filter(StoreOrder.status == status)
@@ -729,7 +725,7 @@ def list_orders(
 
 @router.get("/orders/{order_id}", response_model=StoreOrderResponse)
 def get_order(order_id: int, user: User = Depends(require_permission("ecommerce.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _order_response(_get_store_order(db, order_id, company.id))
 
 
@@ -741,7 +737,7 @@ def update_order_status(
     user: User = Depends(require_permission("ecommerce.manage_orders")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_store_order(db, order_id, company.id)
     if data.status not in ORDER_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
@@ -775,7 +771,7 @@ def record_order_payment(
     user: User = Depends(require_permission("ecommerce.record_payment")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     order = _get_store_order(db, order_id, company.id)
     amount = Decimal(str(data.amount if data.amount is not None else order.grand_total))
     method = data.method or order.payment_method
@@ -791,7 +787,7 @@ def record_order_payment(
 
 @router.get("/returns", response_model=StoreReturnListResponse)
 def list_returns(user: User = Depends(require_permission("ecommerce.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(StoreReturn, StoreOrder)
         .join(StoreOrder, StoreOrder.id == StoreReturn.order_id)
@@ -822,7 +818,7 @@ def update_return(
     user: User = Depends(require_permission("ecommerce.manage_returns")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     ret = db.query(StoreReturn).filter(StoreReturn.id == return_id, StoreReturn.company_id == company.id).first()
     if not ret:
         raise HTTPException(status_code=404, detail="Return not found")

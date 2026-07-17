@@ -20,6 +20,7 @@ from ai_reports_schemas import (
     PermittedDomainsResponse,
     WatchItem,
 )
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import AiInsightRun, AiInsightSection, AiReportSettings, Company, User
 from services.ai_insight_service import (
@@ -33,11 +34,6 @@ from services.ai_insight_service import (
 router = APIRouter(prefix="/ai-reports", tags=["ai-reports"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> AiReportSettings:
@@ -138,9 +134,9 @@ def _run_response(run: AiInsightRun) -> InsightRunResponse:
 @router.get("/settings", response_model=AiReportSettingsResponse)
 def get_settings(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("ai_reports.view")),
+    user: User = Depends(require_permission("ai_reports.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -151,7 +147,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_reports.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     for key, value in payload.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
@@ -180,7 +176,7 @@ def dashboard(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_reports.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
 
     runs = (
@@ -208,9 +204,9 @@ def list_runs(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("ai_reports.view")),
+    user: User = Depends(require_permission("ai_reports.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     q = db.query(AiInsightRun).filter(AiInsightRun.company_id == company.id)
     total = q.count()
@@ -222,9 +218,9 @@ def list_runs(
 def get_run(
     run_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("ai_reports.view")),
+    user: User = Depends(require_permission("ai_reports.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     return _run_response(_load_run(db, company.id, run_id))
 
@@ -236,7 +232,7 @@ def generate_insight(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("ai_reports.generate")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 

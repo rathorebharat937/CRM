@@ -12,6 +12,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import (
     Company,
@@ -68,11 +69,6 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE = 5 * 1024 * 1024
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing purchase orders")
-    return company
 
 
 def _decimal(value: float | Decimal | None) -> Decimal:
@@ -406,8 +402,8 @@ def payment_terms(_: User = Depends(require_permission("purchase_orders.view")))
 
 
 @router.get("/stats/summary", response_model=PurchaseOrderStatsResponse)
-def stats(_: User = Depends(require_permission("purchase_orders.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("purchase_orders.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     open_statuses = [
         "submitted", "under_review", "approved", "sent_to_vendor",
@@ -456,10 +452,10 @@ def stats(_: User = Depends(require_permission("purchase_orders.view")), db: Ses
 def approval_queue(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("purchase_orders.approve")),
+    user: User = Depends(require_permission("purchase_orders.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(PurchaseOrder)
         .options(
@@ -489,7 +485,7 @@ def list_purchase_orders(
     user: User = Depends(require_permission("purchase_orders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(PurchaseOrder)
         .options(
@@ -531,7 +527,7 @@ def create_purchase_order(
     user: User = Depends(require_permission("purchase_orders.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _validate_payment_terms(payload.payment_terms)
     _validate_fk(db, Deal, payload.deal_id, company.id, "deal")
     _validate_fk(db, Contact, payload.contact_id, company.id, "contact")
@@ -574,10 +570,10 @@ def create_purchase_order(
 @router.get("/{po_id}", response_model=PurchaseOrderResponse)
 def get_purchase_order(
     po_id: int,
-    _: User = Depends(require_permission("purchase_orders.view")),
+    user: User = Depends(require_permission("purchase_orders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _po_response(_get_po(db, po_id, company.id))
 
 
@@ -589,7 +585,7 @@ def update_purchase_order(
     user: User = Depends(require_permission("purchase_orders.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if not _can_edit(po, user, db):
         raise HTTPException(status_code=403, detail="You cannot edit this purchase order")
@@ -626,7 +622,7 @@ def delete_purchase_order(
     user: User = Depends(require_permission("purchase_orders.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft purchase orders can be deleted")
@@ -644,7 +640,7 @@ def submit_purchase_order(
     user: User = Depends(require_permission("purchase_orders.submit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.created_by_id != user.id and not role_has_permission(db, user.role, "purchase_orders.edit_all"):
         raise HTTPException(status_code=403, detail="You cannot submit this purchase order")
@@ -673,7 +669,7 @@ def approve_purchase_order(
     user: User = Depends(require_permission("purchase_orders.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="PO is not awaiting approval")
@@ -697,7 +693,7 @@ def reject_purchase_order(
     user: User = Depends(require_permission("purchase_orders.reject")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="PO is not awaiting approval")
@@ -719,7 +715,7 @@ def send_to_vendor(
     user: User = Depends(require_permission("purchase_orders.send")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status != "approved":
         raise HTTPException(status_code=400, detail="Only approved POs can be sent to vendor")
@@ -739,7 +735,7 @@ def record_receipt(
     user: User = Depends(require_permission("purchase_orders.record_receipt")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in RECEIPT_STATUSES:
         raise HTTPException(status_code=400, detail="Receipts can only be recorded after PO is sent to vendor")
@@ -779,7 +775,7 @@ def record_billing(
     user: User = Depends(require_permission("purchase_orders.record_billing")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in BILLING_STATUSES:
         raise HTTPException(status_code=400, detail="Billing can only be recorded after receipt progress exists")
@@ -817,7 +813,7 @@ def close_purchase_order(
     user: User = Depends(require_permission("purchase_orders.close")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in {"fully_billed", "partially_billed", "fully_received"}:
         raise HTTPException(status_code=400, detail="PO cannot be closed in its current status")
@@ -836,7 +832,7 @@ def cancel_purchase_order(
     user: User = Depends(require_permission("purchase_orders.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status in {"closed", "cancelled"}:
         raise HTTPException(status_code=400, detail="PO is already finalised")
@@ -855,7 +851,7 @@ async def upload_attachment(
     user: User = Depends(require_permission("purchase_orders.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(status_code=400, detail="File type not allowed. Use JPG, PNG, WEBP, or PDF.")
@@ -896,10 +892,10 @@ async def upload_attachment(
 def download_attachment(
     po_id: int,
     attachment_id: int,
-    _: User = Depends(require_permission("purchase_orders.view")),
+    user: User = Depends(require_permission("purchase_orders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     attachment = next((a for a in po.attachments if a.id == attachment_id), None)
     if not attachment:

@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_current_user, get_db
 from expense_config import EXPENSE_CATEGORY_LABELS, EXPENSE_STATUS_LABELS
 from invoice_config import INVOICE_STATUS_LABELS
@@ -54,11 +55,6 @@ def _float(v) -> float:
     return 0.0 if v is None else float(v)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before viewing P&L reports")
-    return company
 
 
 def _has_any_permission(db: Session, role: str, codes: tuple[str, ...]) -> bool:
@@ -502,7 +498,7 @@ def pl_summary(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     fy = company.financial_year_start_month or 4
     start, end, label, comp_start, comp_end, comp_label = _resolve_period(period, date_from, date_to, fy)
     ctx = _company_context(company)
@@ -581,7 +577,7 @@ def pl_revenue(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     fy = company.financial_year_start_month or 4
     start, end, label, _, _, _ = _resolve_period(period, date_from, date_to, fy)
     ctx = _company_context(company)
@@ -638,7 +634,7 @@ def pl_costs(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     fy = company.financial_year_start_month or 4
     start, end, label, _, _, _ = _resolve_period(period, date_from, date_to, fy)
     ctx = _company_context(company)
@@ -695,7 +691,7 @@ def pl_expenses(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     fy = company.financial_year_start_month or 4
     start, end, label, _, _, _ = _resolve_period(period, date_from, date_to, fy)
     ctx = _company_context(company)

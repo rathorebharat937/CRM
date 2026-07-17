@@ -7,6 +7,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from employee_config import EMPLOYMENT_TYPE_LABELS, EMPLOYMENT_TYPES, GENDER_LABELS, GENDERS
@@ -23,11 +24,6 @@ from schemas import (
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _float(v) -> float | None:
@@ -86,7 +82,7 @@ def list_employees(
     current_user: User = Depends(require_permission("employees.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if not role_has_permission(db, current_user.role, "employees.view_all"):
         user = db.query(User).filter(User.id == current_user.id).first()
         profile = db.query(EmployeeProfile).filter(EmployeeProfile.user_id == current_user.id).first()
@@ -132,7 +128,7 @@ def get_employee(
     current_user: User = Depends(require_permission("employees.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if user_id != current_user.id and not role_has_permission(db, current_user.role, "employees.view_all"):
         raise HTTPException(status_code=403, detail="Permission denied")
 
@@ -157,7 +153,7 @@ def upsert_employee_profile(
     current_user: User = Depends(require_permission("employees.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     user = db.query(User).filter(User.id == user_id, User.company_id == company.id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Employee not found")

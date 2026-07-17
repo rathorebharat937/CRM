@@ -12,23 +12,33 @@ from schemas import (
     NumberingConfigUpdateRequest,
 )
 from services.number_generator_service import NumberGeneratorService
+from tenant_utils import get_current_company, require_company_record
 
 router = APIRouter(prefix="/admin/numbering-config", tags=["numbering-config"])
 
 
-def _get_config(db: Session, config_id: int) -> NumberingConfiguration:
-    config = db.query(NumberingConfiguration).filter(NumberingConfiguration.id == config_id).first()
-    if not config:
-        raise HTTPException(status_code=404, detail="Numbering configuration not found")
+def _get_config(db: Session, config_id: int, company_id: int) -> NumberingConfiguration:
+    config = (
+        db.query(NumberingConfiguration)
+        .filter(NumberingConfiguration.id == config_id)
+        .first()
+    )
+    require_company_record(config, company_id, detail="Numbering configuration not found")
     return config
 
 
 @router.get("", response_model=list[NumberingConfigResponse])
 def list_configurations(
-    _: User = Depends(require_permission("numbering_config.view")),
+    user: User = Depends(require_permission("numbering_config.view")),
     db: Session = Depends(get_db),
 ):
-    return db.query(NumberingConfiguration).order_by(NumberingConfiguration.entity_name).all()
+    company = get_current_company(db, user)
+    return (
+        db.query(NumberingConfiguration)
+        .filter(NumberingConfiguration.company_id == company.id)
+        .order_by(NumberingConfiguration.entity_name)
+        .all()
+    )
 
 
 @router.post("", response_model=NumberingConfigResponse)
@@ -38,9 +48,15 @@ def create_configuration(
     admin: User = Depends(require_permission("numbering_config.create")),
     db: Session = Depends(get_db),
 ):
-    existing = db.query(NumberingConfiguration).filter(
-        NumberingConfiguration.entity_name == data.entity_name
-    ).first()
+    company = get_current_company(db, admin)
+    existing = (
+        db.query(NumberingConfiguration)
+        .filter(
+            NumberingConfiguration.company_id == company.id,
+            NumberingConfiguration.entity_name == data.entity_name,
+        )
+        .first()
+    )
     if existing:
         raise HTTPException(
             status_code=400,
@@ -48,6 +64,7 @@ def create_configuration(
         )
 
     config = NumberingConfiguration(
+        company_id=company.id,
         entity_name=data.entity_name.upper(),
         prefix=data.prefix.upper(),
         starting_number=data.starting_number,
@@ -79,7 +96,8 @@ def update_configuration(
     admin: User = Depends(require_permission("numbering_config.edit")),
     db: Session = Depends(get_db),
 ):
-    config = _get_config(db, config_id)
+    company = get_current_company(db, admin)
+    config = _get_config(db, config_id, company.id)
 
     if data.prefix is not None:
         config.prefix = data.prefix.upper()
@@ -114,7 +132,8 @@ def delete_configuration(
     admin: User = Depends(require_permission("numbering_config.delete")),
     db: Session = Depends(get_db),
 ):
-    config = _get_config(db, config_id)
+    company = get_current_company(db, admin)
+    config = _get_config(db, config_id, company.id)
     entity_name = config.entity_name
 
     db.delete(config)
@@ -139,7 +158,8 @@ def activate_configuration(
     admin: User = Depends(require_permission("numbering_config.edit")),
     db: Session = Depends(get_db),
 ):
-    config = _get_config(db, config_id)
+    company = get_current_company(db, admin)
+    config = _get_config(db, config_id, company.id)
     config.is_active = True
     db.commit()
 
@@ -162,7 +182,8 @@ def deactivate_configuration(
     admin: User = Depends(require_permission("numbering_config.edit")),
     db: Session = Depends(get_db),
 ):
-    config = _get_config(db, config_id)
+    company = get_current_company(db, admin)
+    config = _get_config(db, config_id, company.id)
     config.is_active = False
     db.commit()
 
@@ -181,11 +202,12 @@ def deactivate_configuration(
 @router.post("/generate/{entity_name}")
 def generate_number(
     entity_name: str,
-    _: User = Depends(require_permission("numbering_config.view")),
+    user: User = Depends(require_permission("numbering_config.view")),
     db: Session = Depends(get_db),
 ):
+    company = get_current_company(db, user)
     try:
-        number = NumberGeneratorService.generate(db, entity_name.upper())
+        number = NumberGeneratorService.generate(db, entity_name.upper(), company.id)
         return {"number": number, "entity_name": entity_name.upper()}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -194,11 +216,12 @@ def generate_number(
 @router.get("/preview/{entity_name}")
 def preview_next_number(
     entity_name: str,
-    _: User = Depends(require_permission("numbering_config.view")),
+    user: User = Depends(require_permission("numbering_config.view")),
     db: Session = Depends(get_db),
 ):
+    company = get_current_company(db, user)
     try:
-        number = NumberGeneratorService.get_next_number(db, entity_name.upper())
+        number = NumberGeneratorService.get_next_number(db, entity_name.upper(), company.id)
         return {"next_number": number, "entity_name": entity_name.upper()}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

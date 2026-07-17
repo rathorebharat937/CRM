@@ -5,6 +5,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from deal_config import (
@@ -29,15 +30,6 @@ from services.workflow_events import emit_deal_lifecycle, emit_workflow_event
 
 router = APIRouter(prefix="/deals", tags=["deals"])
 
-
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(
-            status_code=400,
-            detail="Company must be configured before managing deals",
-        )
-    return company
 
 
 def _validate_stage(stage: str) -> None:
@@ -191,10 +183,10 @@ def _build_deal_from_payload(
 
 @router.get("/stats/summary", response_model=DealStatsResponse)
 def deal_stats(
-    _: User = Depends(require_permission("deals.view")),
+    user: User = Depends(require_permission("deals.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(Deal.stage, func.count(Deal.id))
         .filter(Deal.company_id == company.id)
@@ -244,10 +236,10 @@ def list_deal_stages(_: User = Depends(require_permission("deals.view"))):
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
 def list_deal_assignees(
-    _: User = Depends(require_permission("deals.assign")),
+    user: User = Depends(require_permission("deals.assign")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(
@@ -270,10 +262,10 @@ def pipeline_board(
     search: str | None = None,
     include_closed: bool = Query(False),
     closed_limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("deals.view")),
+    user: User = Depends(require_permission("deals.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     base_query = (
         db.query(Deal)
         .options(
@@ -337,10 +329,10 @@ def list_deals(
     stage: str | None = None,
     assigned_to_id: int | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("deals.view")),
+    user: User = Depends(require_permission("deals.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Deal)
         .options(
@@ -385,10 +377,10 @@ def list_deals(
 @router.get("/{deal_id}", response_model=DealResponse)
 def get_deal(
     deal_id: int,
-    _: User = Depends(require_permission("deals.view")),
+    user: User = Depends(require_permission("deals.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _deal_to_response(_get_deal(db, deal_id, company.id))
 
 
@@ -399,7 +391,7 @@ def create_deal(
     user: User = Depends(require_permission("deals.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     payload = data.model_dump()
     if payload.get("lost_reason") and payload["stage"] != "lost":
         payload["lost_reason"] = None
@@ -436,7 +428,7 @@ def update_deal(
     user: User = Depends(require_permission("deals.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     deal = _get_deal(db, deal_id, company.id)
     payload = data.model_dump()
     _validate_stage(payload["stage"])
@@ -498,7 +490,7 @@ def update_deal_stage(
     user: User = Depends(require_permission("deals.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     deal = _get_deal(db, deal_id, company.id)
     _validate_stage(data.stage)
 
@@ -539,7 +531,7 @@ def create_deal_from_lead(
     user: User = Depends(require_permission("deals.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     lead = _get_lead(db, lead_id, company.id)
 
     title = lead.organization_name or lead.name
@@ -593,7 +585,7 @@ def create_deal_from_contact(
     user: User = Depends(require_permission("deals.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contact = (
         db.query(Contact)
         .filter(Contact.id == contact_id, Contact.company_id == company.id)

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from attendance_config import (
     ATTENDANCE_STATUS_LABELS,
@@ -51,11 +52,6 @@ def _today_noon() -> datetime:
     return now.replace(hour=12, minute=0, second=0, microsecond=0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _float(v) -> float | None:
@@ -90,7 +86,7 @@ def attendance_stats(
     current_user: User = Depends(require_permission("attendance.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     today = _today_noon()
     base = db.query(AttendanceRecord).filter(
         AttendanceRecord.company_id == company.id,
@@ -114,7 +110,7 @@ def my_attendance_today(
     db: Session = Depends(get_db),
 ):
     """Today's attendance for the logged-in employee with check-in/out actions."""
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     today = _today_noon()
     rec = (
         db.query(AttendanceRecord)
@@ -162,7 +158,7 @@ def team_attendance_today(
     db: Session = Depends(get_db),
 ):
     """All staff attendance for today — visible to Admin and Manager."""
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     today = _today_noon()
     staff = (
         db.query(User)
@@ -227,7 +223,7 @@ def list_attendance(
     current_user: User = Depends(require_permission("attendance.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     since = _today_noon() - timedelta(days=days)
     query = (
         db.query(AttendanceRecord)
@@ -259,7 +255,7 @@ def record_attendance(
     current_user: User = Depends(require_permission("attendance.record")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if payload.status not in ATTENDANCE_STATUSES:
         raise HTTPException(status_code=400, detail="Invalid status")
 
@@ -318,7 +314,7 @@ def check_in(
             status_code=403,
             detail="Use your employee login to check in. This account is for viewing team attendance only.",
         )
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     today = _today_noon()
     now = _utcnow()
     rec = (
@@ -379,7 +375,7 @@ def check_out(
             status_code=403,
             detail="Use your employee login to check out. This account is for viewing team attendance only.",
         )
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     today = _today_noon()
     now = _utcnow()
     rec = (

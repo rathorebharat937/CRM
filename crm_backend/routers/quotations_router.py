@@ -9,6 +9,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from company_branding import build_company_branding
 from config import FRONTEND_URL, STAFF_ROLES
@@ -73,15 +74,6 @@ from schemas import (
 router = APIRouter(prefix="/quotations", tags=["quotations"])
 public_router = APIRouter(prefix="/public/quotes", tags=["public-quotes"])
 
-
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(
-            status_code=400,
-            detail="Company must be configured before managing quotations",
-        )
-    return company
 
 
 def _decimal(value: float | Decimal | None) -> Decimal:
@@ -649,10 +641,10 @@ def quotation_defaults(
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
 def quotation_assignees(
-    _: User = Depends(require_permission("quotations.view")),
+    user: User = Depends(require_permission("quotations.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(
@@ -671,10 +663,10 @@ def quotation_assignees(
 
 @router.get("/stats/summary", response_model=QuotationStatsResponse)
 def quotation_stats(
-    _: User = Depends(require_permission("quotations.view")),
+    user: User = Depends(require_permission("quotations.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(Quotation.status, func.count(Quotation.id))
         .filter(Quotation.company_id == company.id)
@@ -733,10 +725,10 @@ def quotation_stats(
 def approval_queue(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("quotations.approve")),
+    user: User = Depends(require_permission("quotations.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Quotation)
         .options(
@@ -775,10 +767,10 @@ def list_quotations(
     expiring_in_days: int | None = None,
     sort_by: str = Query("updated_at"),
     sort_dir: str = Query("desc"),
-    _: User = Depends(require_permission("quotations.view")),
+    user: User = Depends(require_permission("quotations.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Quotation)
         .options(
@@ -854,7 +846,7 @@ def create_quotation(
     user: User = Depends(require_permission("quotations.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     enriched = _populate_from_context(db, company.id, payload)
     quote = _build_quotation(db, company, enriched, user)
     db.commit()
@@ -875,10 +867,10 @@ def create_quotation(
 @router.get("/{quote_id}", response_model=QuotationResponse)
 def get_quotation(
     quote_id: int,
-    _: User = Depends(require_permission("quotations.view")),
+    user: User = Depends(require_permission("quotations.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     _check_expiry(quote)
     db.commit()
@@ -893,7 +885,7 @@ def update_quotation(
     user: User = Depends(require_permission("quotations.edit_draft")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     _update_quotation_fields(quote, payload, db)
     db.commit()
@@ -916,7 +908,7 @@ def delete_quotation(
     user: User = Depends(require_permission("quotations.edit_draft")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft quotations can be deleted")
@@ -931,7 +923,7 @@ def submit_for_approval(
     user: User = Depends(require_permission("quotations.submit_approval")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft quotations can be submitted")
@@ -966,7 +958,7 @@ def approve_quotation(
     user: User = Depends(require_permission("quotations.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status != "pending_approval":
         raise HTTPException(status_code=400, detail="Quotation is not awaiting approval")
@@ -995,7 +987,7 @@ def reject_approval(
     user: User = Depends(require_permission("quotations.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status != "pending_approval":
         raise HTTPException(status_code=400, detail="Quotation is not awaiting approval")
@@ -1022,7 +1014,7 @@ def send_quotation(
     user: User = Depends(require_permission("quotations.send")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status not in {"approved", "sent", "viewed", "negotiation"}:
         raise HTTPException(
@@ -1092,7 +1084,7 @@ def cancel_quotation(
     user: User = Depends(require_permission("quotations.cancel")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Quotation is already in a final state")
@@ -1118,7 +1110,7 @@ def create_revision(
     user: User = Depends(require_permission("quotations.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     original = _get_quotation(db, quote_id, company.id)
     if original.status in {"draft", "pending_approval"}:
         raise HTTPException(
@@ -1217,7 +1209,7 @@ def send_reminder(
     user: User = Depends(require_permission("quotations.send")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status not in {"sent", "viewed", "negotiation"}:
         raise HTTPException(status_code=400, detail="Reminders can only be sent for active quotes")
@@ -1265,7 +1257,7 @@ def accept_override(
     user: User = Depends(require_permission("quotations.accept_override")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Quotation is already finalized")
@@ -1294,7 +1286,7 @@ def reject_override(
     user: User = Depends(require_permission("quotations.accept_override")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     if quote.status in FINAL_STATUSES:
         raise HTTPException(status_code=400, detail="Quotation is already finalized")
@@ -1317,10 +1309,10 @@ def reject_override(
 @router.get("/{quote_id}/versions", response_model=list[QuotationVersionSummary])
 def list_versions(
     quote_id: int,
-    _: User = Depends(require_permission("quotations.view")),
+    user: User = Depends(require_permission("quotations.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     quote = _get_quotation(db, quote_id, company.id)
     root_id = quote.root_quote_id or quote.id
     versions = (

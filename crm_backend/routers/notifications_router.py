@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from models import Company, Notification, User
@@ -22,11 +23,6 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 NOTIFICATION_CATEGORIES = {"announcement", "follow_up", "approval", "payment", "task", "system"}
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company not configured")
-    return company
 
 
 def _serialize(note: Notification) -> NotificationResponse:
@@ -62,7 +58,7 @@ def send_notifications(
     db: Session = Depends(get_db),
 ):
     """Send an in-app alert to all active users in one role. Staff may target portal User accounts; User role cannot send."""
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     target = payload.target_role.strip()
 
     if payload.category not in NOTIFICATION_CATEGORIES:
@@ -152,7 +148,7 @@ def list_notifications(
     current_user: User = Depends(require_permission("notifications.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     query = (
         db.query(Notification)
         .filter(Notification.company_id == company.id, Notification.user_id == current_user.id)
@@ -178,7 +174,7 @@ def unread_count(
     current_user: User = Depends(require_permission("notifications.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     count = (
         db.query(Notification)
         .filter(
@@ -198,7 +194,7 @@ def dismiss_notification(
     db: Session = Depends(get_db),
 ):
     """Remove an alert from the user's inbox after it has been read or opened."""
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     note = (
         db.query(Notification)
         .filter(
@@ -221,7 +217,7 @@ def dismiss_all_notifications(
     current_user: User = Depends(require_permission("notifications.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     db.query(Notification).filter(
         Notification.company_id == company.id,
         Notification.user_id == current_user.id,

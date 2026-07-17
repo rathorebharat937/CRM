@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import (
     Company,
@@ -71,11 +72,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _require_enabled(settings: QualitySettings) -> None:
@@ -181,7 +177,7 @@ def quality_dashboard(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     sync_overdue_inspection_alerts(db, company)
@@ -364,7 +360,7 @@ def _capa_response(capa: CorrectiveAction) -> CapaResponse:
 
 @router.get("/settings", response_model=QualitySettingsResponse)
 def get_settings(db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    return _settings_response(get_quality_settings(db, _get_company(db)))
+    return _settings_response(get_quality_settings(db, get_current_company(db, user)))
 
 
 @router.put("/settings", response_model=QualitySettingsResponse)
@@ -374,7 +370,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     for key, value in body.model_dump(exclude_unset=True).items():
         setattr(settings, key, value)
@@ -388,7 +384,7 @@ def update_settings(
 
 @router.get("/inspection-points", response_model=list[InspectionPointResponse])
 def list_inspection_points(db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     points = (
@@ -421,7 +417,7 @@ def update_inspection_point(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_templates")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     point = db.query(InspectionPoint).filter(InspectionPoint.company_id == company.id, InspectionPoint.id == point_id).first()
@@ -447,7 +443,7 @@ def update_inspection_point(
 
 @router.get("/templates", response_model=TemplateListResponse)
 def list_templates(db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     templates = (
@@ -481,7 +477,7 @@ def create_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_templates")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     if not body.items_json:
@@ -524,7 +520,7 @@ def _template_response(tmpl: QualityChecklistTemplate) -> TemplateResponse:
 
 @router.get("/templates/{template_id}", response_model=TemplateResponse)
 def get_template(template_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     tmpl = (
@@ -546,7 +542,7 @@ def update_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_templates")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     tmpl = (
@@ -577,7 +573,7 @@ def activate_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_templates")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     tmpl = (
@@ -615,7 +611,7 @@ def list_inspections(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     q = (
@@ -645,7 +641,7 @@ def create_manual_inspection(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.inspect")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     point = db.query(InspectionPoint).filter(InspectionPoint.company_id == company.id, InspectionPoint.id == body.inspection_point_id).first()
@@ -671,7 +667,7 @@ def create_manual_inspection(
 
 @router.get("/inspections/{inspection_id}", response_model=InspectionResponse)
 def get_inspection(inspection_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     return _inspection_response(db, _get_inspection(db, company.id, inspection_id))
@@ -685,7 +681,7 @@ def submit_inspection_endpoint(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.inspect")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     insp = _get_inspection(db, company.id, inspection_id)
@@ -707,7 +703,7 @@ def waive_inspection_endpoint(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.waive")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     if not body.waiver_reason.strip():
@@ -729,7 +725,7 @@ def list_alerts(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     q = db.query(QualityAlert).options(joinedload(QualityAlert.product)).filter(QualityAlert.company_id == company.id)
@@ -763,7 +759,7 @@ def acknowledge_alert(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_alerts")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     alert = db.query(QualityAlert).filter(QualityAlert.company_id == company.id, QualityAlert.id == alert_id).first()
@@ -782,7 +778,7 @@ def list_capas(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     q = (
@@ -803,7 +799,7 @@ def create_capa(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_capa")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     if body.action_type not in CAPA_ACTION_TYPES:
@@ -837,7 +833,7 @@ def create_capa(
 
 @router.get("/corrective-actions/{capa_id}", response_model=CapaResponse)
 def get_capa(capa_id: int, db: Session = Depends(get_db), user: User = Depends(require_permission("quality.view"))):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     capa = (
@@ -859,7 +855,7 @@ def update_capa(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("quality.manage_capa")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = get_quality_settings(db, company)
     _require_enabled(settings)
     capa = (

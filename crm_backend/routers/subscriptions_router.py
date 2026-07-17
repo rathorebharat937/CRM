@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import (
     Company,
@@ -67,11 +68,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> SubscriptionSettings:
@@ -225,9 +221,9 @@ def _load_subscription(db: Session, company_id: int, sub_id: int) -> CustomerSub
 @router.get("/settings", response_model=SubscriptionSettingsResponse)
 def get_settings(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -238,7 +234,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     data = payload.model_dump(exclude_unset=True)
     if "auto_invoice_mode" in data and data["auto_invoice_mode"] not in ("draft", "issue"):
@@ -262,9 +258,9 @@ def update_settings(
 def list_plans(
     status: str | None = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     q = db.query(SubscriptionPlan).filter(SubscriptionPlan.company_id == company.id)
     if status:
@@ -280,7 +276,7 @@ def create_plan(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.manage_plans")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     try:
         validate_plan_payload(payload.billing_interval, payload.interval_days)
@@ -328,9 +324,9 @@ def create_plan(
 def get_plan(
     plan_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     plan = (
         db.query(SubscriptionPlan)
         .filter(SubscriptionPlan.id == plan_id, SubscriptionPlan.company_id == company.id)
@@ -349,7 +345,7 @@ def update_plan(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.manage_plans")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     plan = (
         db.query(SubscriptionPlan)
         .filter(SubscriptionPlan.id == plan_id, SubscriptionPlan.company_id == company.id)
@@ -384,9 +380,9 @@ def update_plan(
 @router.get("/dashboard", response_model=SubscriptionsDashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
 
     today = date.today()
@@ -452,9 +448,9 @@ def list_subscriptions(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
 
     q = (
@@ -485,7 +481,7 @@ def create_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -540,9 +536,9 @@ def create_subscription(
 def get_subscription(
     sub_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     return _sub_response(_load_subscription(db, company.id, sub_id))
 
@@ -555,7 +551,7 @@ def cancel_subscription(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.cancel")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -595,7 +591,7 @@ def change_plan(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.change_plan")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
 
     sub = _load_subscription(db, company.id, sub_id)
@@ -635,7 +631,7 @@ def run_billing_endpoint(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("subscriptions.bill")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -655,8 +651,8 @@ def run_billing_endpoint(
 def list_subscription_invoices(
     sub_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("subscriptions.view")),
+    user: User = Depends(require_permission("subscriptions.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     sub = _load_subscription(db, company.id, sub_id)
     return _sub_response(sub).invoices

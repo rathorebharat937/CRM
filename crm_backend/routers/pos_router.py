@@ -11,6 +11,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_company_by_id
 from auth_utils import get_client_ip, get_db, require_permission
 from company_branding import build_company_branding
 from invoice_config import DEFAULT_BANK_INSTRUCTIONS, DEFAULT_BILLING_NOTES, DEFAULT_PAYMENT_TERMS
@@ -85,11 +86,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> PosSettings:
@@ -502,7 +498,7 @@ def _receipt_html(company: Company, settings: PosSettings, bill: PosBill) -> str
 
 @router.get("/dashboard", response_model=PosDashboardResponse)
 def dashboard(user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     today_start = _utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     bills = (
         db.query(PosBill)
@@ -527,7 +523,7 @@ def dashboard(user: User = Depends(require_permission("pos.view")), db: Session 
 
 @router.get("/settings", response_model=PosSettingsResponse)
 def get_settings(user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -537,7 +533,7 @@ def update_settings(
     user: User = Depends(require_permission("pos.manage_settings")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(settings, field, value)
@@ -548,7 +544,7 @@ def update_settings(
 
 @router.get("/registers", response_model=list[PosRegisterResponse])
 def list_registers(user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     registers = db.query(PosRegister).filter(PosRegister.company_id == company.id).order_by(PosRegister.name).all()
     open_ids = {
         r[0]
@@ -576,7 +572,7 @@ def create_register(
     user: User = Depends(require_permission("pos.manage_settings")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     existing = db.query(PosRegister).filter(PosRegister.company_id == company.id, PosRegister.code == data.code.strip()).first()
     if existing:
         raise HTTPException(status_code=400, detail="Register code already exists")
@@ -613,7 +609,7 @@ def open_session(
     user: User = Depends(require_permission("pos.bill")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_pos_enabled(settings)
     reg = db.query(PosRegister).filter(PosRegister.id == data.register_id, PosRegister.company_id == company.id, PosRegister.is_active.is_(True)).first()
@@ -644,7 +640,7 @@ def close_session(
     user: User = Depends(require_permission("pos.manage_sessions")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     session = _get_session(db, session_id, company.id)
     if session.status != "open":
         raise HTTPException(status_code=400, detail="Session already closed")
@@ -696,7 +692,7 @@ def list_sessions(
     user: User = Depends(require_permission("pos.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = db.query(PosSession).options(joinedload(PosSession.register), joinedload(PosSession.opened_by)).filter(PosSession.company_id == company.id)
     if status:
         q = q.filter(PosSession.status == status)
@@ -706,7 +702,7 @@ def list_sessions(
 
 @router.get("/sessions/{session_id}/z-report", response_model=PosZReportResponse)
 def get_z_report(session_id: int, user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     session = _get_session(db, session_id, company.id)
     bills = db.query(PosBill).options(joinedload(PosBill.payments)).filter(PosBill.session_id == session.id, PosBill.status == "completed").all()
     mix: dict[str, float] = {}
@@ -739,7 +735,7 @@ def get_z_report(session_id: int, user: User = Depends(require_permission("pos.v
 
 @router.get("/catalog", response_model=list[PosCatalogItemResponse])
 def list_catalog(user: User = Depends(require_permission("pos.manage_catalog")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     products = db.query(Product).filter(Product.company_id == company.id, Product.status == "active").order_by(Product.name).all()
     settings = _get_settings(db, company)
     return [
@@ -765,7 +761,7 @@ def update_catalog(
     user: User = Depends(require_permission("pos.manage_catalog")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     product = db.query(Product).filter(Product.id == product_id, Product.company_id == company.id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
@@ -795,7 +791,7 @@ def terminal_catalog(
     session: PosSession = Depends(_session_dep),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_company_by_id(db, session.company_id)
     settings = _get_settings(db, company)
     query = db.query(Product).filter(Product.company_id == company.id, Product.sell_at_pos.is_(True), Product.status == "active")
     if category:
@@ -836,7 +832,7 @@ def add_cart_item(
     user: User = Depends(require_permission("pos.bill")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     product = _get_pos_product(db, company.id, data.product_id)
     if not _product_in_stock(product, settings):
@@ -979,7 +975,7 @@ def checkout(
     user: User = Depends(require_permission("pos.bill")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     if data.payment_method not in PAYMENT_METHODS:
         raise HTTPException(status_code=400, detail="Invalid payment method")
@@ -1076,7 +1072,7 @@ def list_bills(
     user: User = Depends(require_permission("pos.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = db.query(PosBill).options(joinedload(PosBill.items), joinedload(PosBill.payments), joinedload(PosBill.cashier)).filter(PosBill.company_id == company.id)
     if status:
         q = q.filter(PosBill.status == status)
@@ -1086,13 +1082,13 @@ def list_bills(
 
 @router.get("/bills/{bill_id}", response_model=PosBillResponse)
 def get_bill(bill_id: int, user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _bill_response(_get_bill(db, bill_id, company.id))
 
 
 @router.get("/bills/{bill_id}/receipt", response_model=PosReceiptResponse)
 def get_receipt(bill_id: int, user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     bill = _get_bill(db, bill_id, company.id)
     return PosReceiptResponse(bill_number=bill.bill_number, html=_receipt_html(company, settings, bill))
@@ -1106,7 +1102,7 @@ def void_bill(
     user: User = Depends(require_permission("pos.void")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status != "completed":
@@ -1134,7 +1130,7 @@ def process_return(
     user: User = Depends(require_permission("pos.return")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status not in ("completed", "partially_returned"):
@@ -1179,7 +1175,7 @@ def process_return(
 
 @router.get("/returns", response_model=PosReturnListResponse)
 def list_returns(user: User = Depends(require_permission("pos.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(PosReturn, PosBill)
         .join(PosBill, PosBill.id == PosReturn.bill_id)

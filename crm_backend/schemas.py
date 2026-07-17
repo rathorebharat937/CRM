@@ -15,6 +15,28 @@ class SignupRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=6, max_length=128)
     phone: str | None = Field(default=None, max_length=30)
+    invite_token: str | None = Field(default=None, max_length=128)
+
+
+class RegisterCompanyRequest(BaseModel):
+    owner_name: str = Field(min_length=2, max_length=120)
+    owner_email: EmailStr
+    password: str = Field(min_length=6, max_length=128)
+    company_legal_name: str = Field(min_length=2, max_length=200)
+    company_display_name: str | None = Field(default=None, max_length=200)
+    phone: str | None = Field(default=None, max_length=30)
+
+
+class RegisterCompanyResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    message: str
+    role: str
+    name: str
+    email: str
+    company_id: int
+    company_name: str
+    permissions: list[str] = []
 
 
 class TokenResponse(BaseModel):
@@ -24,6 +46,7 @@ class TokenResponse(BaseModel):
     role: str
     name: str
     email: str
+    company_id: int | None = None
     permissions: list[str] = []
 
 

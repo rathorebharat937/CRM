@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from client_note_config import (
     FOLLOW_UP_PRIORITIES,
@@ -43,11 +44,6 @@ from schemas import (
 router = APIRouter(prefix="/client-notes", tags=["client-notes"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing client notes")
-    return company
 
 
 def _validate_note_type(note_type: str) -> None:
@@ -214,7 +210,7 @@ def assignees(_: User = Depends(require_permission("client_notes.view")), db: Se
 
 @router.get("/stats/summary", response_model=ClientNoteStatsResponse)
 def stats(user: User = Depends(require_permission("client_notes.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     base = db.query(ClientNote).filter(ClientNote.company_id == company.id, ClientNote.is_deleted.is_(False))
     base = _apply_visibility_filter(base, user, db)
     now = datetime.now(timezone.utc)
@@ -242,7 +238,7 @@ def follow_up_queue(
     user: User = Depends(require_permission("client_notes.manage_followups")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(ClientNote)
         .options(
@@ -298,7 +294,7 @@ def list_notes(
     user: User = Depends(require_permission("client_notes.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(ClientNote)
         .options(
@@ -363,7 +359,7 @@ def create_note(
     user: User = Depends(require_permission("client_notes.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _validate_note_type(payload.note_type)
     _validate_visibility(payload.visibility_scope)
     _validate_priority(payload.follow_up_priority)
@@ -427,7 +423,7 @@ def get_note(
     user: User = Depends(require_permission("client_notes.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     if note.is_sensitive and not _can_view_sensitive(user, db):
         raise HTTPException(status_code=403, detail="Not allowed to view sensitive note")
@@ -442,7 +438,7 @@ def update_note(
     user: User = Depends(require_permission("client_notes.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     if not _can_edit_note(note, user, db):
         raise HTTPException(status_code=403, detail="Not allowed to edit this note")
@@ -522,7 +518,7 @@ def delete_note(
     user: User = Depends(require_permission("client_notes.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     note.is_deleted = True
     db.commit()
@@ -544,7 +540,7 @@ def pin_note(
     user: User = Depends(require_permission("client_notes.pin")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     if not note.is_pinned:
         max_pin = db.query(func.max(ClientNote.pin_order)).filter(
@@ -564,7 +560,7 @@ def unpin_note(
     user: User = Depends(require_permission("client_notes.pin")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     note.is_pinned = False
     note.pin_order = 0
@@ -579,7 +575,7 @@ def complete_followup(
     user: User = Depends(require_permission("client_notes.manage_followups")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     note = _get_note(db, note_id, company.id)
     note.follow_up_completed_at = datetime.now(timezone.utc)
     note.is_resolved = True

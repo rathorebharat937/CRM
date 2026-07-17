@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_current_user, get_db
 from invoice_config import INVOICE_STATUS_LABELS
 from models import Company, Invoice, User, VendorBill
@@ -45,11 +46,6 @@ def _float(v) -> float:
     return 0.0 if v is None else float(v)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before viewing tax reports")
-    return company
 
 
 def _has_any_permission(db: Session, role: str, codes: tuple[str, ...]) -> bool:
@@ -418,7 +414,7 @@ def overview(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_tax_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     start, end, label = _period_bounds(period, date_from, date_to, company.financial_year_start_month or 4)
 
     outward = _outward_query(db, company.id, start, end).all()
@@ -453,7 +449,7 @@ def sales_report(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_sales_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     start, end, label = _period_bounds(period, date_from, date_to, company.financial_year_start_month or 4)
 
     query = _outward_query(db, company.id, start, end, search)
@@ -495,7 +491,7 @@ def purchase_report(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_purchase_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     start, end, label = _period_bounds(period, date_from, date_to, company.financial_year_start_month or 4)
 
     query = _inward_query(db, company.id, start, end, search)
@@ -547,7 +543,7 @@ def summary_report(
     db: Session = Depends(get_db),
     _user: User = Depends(_require_summary_view),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, _user)
     start, end, label = _period_bounds(period, date_from, date_to, company.financial_year_start_month or 4)
 
     outward = _outward_query(db, company.id, start, end).all()

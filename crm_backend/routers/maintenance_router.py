@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from maintenance_config import (
     ASSET_CRITICALITIES,
@@ -76,11 +77,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> MaintenanceSettings:
@@ -375,9 +371,9 @@ def _issue_spare_part_stock(
 @router.get("/settings", response_model=MaintenanceSettingsResponse)
 def get_settings_endpoint(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -388,7 +384,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     data = body.model_dump(exclude_unset=True)
     for key, value in data.items():
@@ -402,9 +398,9 @@ def update_settings(
 @router.get("/categories", response_model=list[AssetCategoryResponse])
 def list_categories(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     rows = (
@@ -423,7 +419,7 @@ def create_category(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     row = MaintenanceAssetCategory(company_id=company.id, name=body.name.strip(), sort_order=body.sort_order)
@@ -441,7 +437,7 @@ def update_category(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     row = (
         db.query(MaintenanceAssetCategory)
         .filter(MaintenanceAssetCategory.id == category_id, MaintenanceAssetCategory.company_id == company.id)
@@ -461,9 +457,9 @@ def update_category(
 @router.get("/dashboard", response_model=MaintenanceDashboardResponse)
 def maintenance_dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     _sync_pm_overdue_notifications(db, company, settings)
@@ -578,9 +574,9 @@ def list_assets(
     criticality: str | None = None,
     pm_overdue: bool | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     today = _utcnow().date()
@@ -613,7 +609,7 @@ def create_asset(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.manage_assets")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     if body.status not in ASSET_STATUSES:
@@ -687,9 +683,9 @@ def _asset_detail_response(asset: MaintenanceAsset) -> AssetResponse:
 def get_asset(
     asset_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     asset = _get_asset(db, company.id, asset_id)
@@ -704,7 +700,7 @@ def update_asset(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.manage_assets")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     asset = _get_asset(db, company.id, asset_id)
@@ -728,9 +724,9 @@ def update_asset(
 def asset_history(
     asset_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     _get_asset(db, company.id, asset_id)
@@ -780,9 +776,9 @@ def list_work_orders(
     asset_id: int | None = None,
     assigned_to_id: int | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     q = (
@@ -809,7 +805,7 @@ def create_work_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.create_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     if body.type not in MWO_TYPES:
@@ -861,9 +857,9 @@ def create_work_order(
 def get_work_order(
     mwo_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     return _mwo_response(_get_mwo(db, company.id, mwo_id))
@@ -877,7 +873,7 @@ def update_work_order_status(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.execute_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     mwo = _get_mwo(db, company.id, mwo_id)
@@ -934,7 +930,7 @@ def issue_parts(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.issue_parts")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     mwo = _get_mwo(db, company.id, mwo_id)
@@ -994,7 +990,7 @@ def complete_work_order(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.execute_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     mwo = _get_mwo(db, company.id, mwo_id)
@@ -1042,9 +1038,9 @@ def complete_work_order(
 @router.get("/pm-schedule", response_model=PmScheduleResponse)
 def pm_schedule(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("maintenance.view")),
+    user: User = Depends(require_permission("maintenance.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     today = _utcnow().date()
@@ -1085,7 +1081,7 @@ def generate_pm_work_orders(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("maintenance.create_wo")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     if not body.asset_ids:

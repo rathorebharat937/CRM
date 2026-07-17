@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import (
     Company,
@@ -83,11 +84,6 @@ def _float(v) -> float:
     return float(v or 0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> RentalSettings:
@@ -345,9 +341,9 @@ def _build_contract_lines(
 @router.get("/settings", response_model=RentalSettingsResponse)
 def get_settings(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _settings_response(_get_settings(db, company))
 
 
@@ -358,7 +354,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     data = payload.model_dump(exclude_unset=True)
     if "auto_invoice_mode" in data and data["auto_invoice_mode"] not in ("draft", "issue"):
@@ -382,9 +378,9 @@ def list_assets(
     status: str | None = Query(None),
     category: str | None = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     q = db.query(RentalAsset).filter(RentalAsset.company_id == company.id)
     if status:
@@ -402,7 +398,7 @@ def create_asset(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.manage_assets")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     if not any([payload.rate_daily, payload.rate_weekly, payload.rate_monthly]):
         raise HTTPException(status_code=400, detail="At least one rate is required")
@@ -450,9 +446,9 @@ def create_asset(
 def get_asset(
     asset_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     asset = (
         db.query(RentalAsset)
         .filter(RentalAsset.id == asset_id, RentalAsset.company_id == company.id)
@@ -471,7 +467,7 @@ def update_asset(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.manage_assets")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     asset = (
         db.query(RentalAsset)
         .filter(RentalAsset.id == asset_id, RentalAsset.company_id == company.id)
@@ -499,9 +495,9 @@ def update_asset(
 def asset_bookings(
     asset_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     lines = (
         db.query(RentalContract)
         .join(RentalContractLine, RentalContractLine.contract_id == RentalContract.id)
@@ -520,9 +516,9 @@ def asset_bookings(
 @router.get("/dashboard", response_model=RentalDashboardResponse)
 def dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -605,9 +601,9 @@ def dashboard(
 def calendar(
     week_start: datetime | None = Query(None),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
 
     start = week_start or _utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -661,9 +657,9 @@ def list_contracts(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     q = (
         db.query(RentalContract)
@@ -686,7 +682,7 @@ def create_contract(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
 
@@ -741,9 +737,9 @@ def create_contract(
 def get_contract(
     contract_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     return _contract_response(_load_contract(db, company.id, contract_id))
 
@@ -752,9 +748,9 @@ def get_contract(
 def check_contract_availability(
     contract_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     contract = _load_contract(db, company.id, contract_id)
     conflicts: list[str] = []
@@ -781,7 +777,7 @@ def confirm_contract(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.confirm")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     contract = _load_contract(db, company.id, contract_id)
@@ -826,7 +822,7 @@ def cancel_contract(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.cancel")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     contract = _load_contract(db, company.id, contract_id)
 
@@ -854,7 +850,7 @@ def dispatch_contract(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.dispatch")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     contract = _load_contract(db, company.id, contract_id)
@@ -892,7 +888,7 @@ def schedule_return(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.process_return")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     contract = _load_contract(db, company.id, contract_id)
 
@@ -920,7 +916,7 @@ def complete_return(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.process_return")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     contract = _load_contract(db, company.id, contract_id)
@@ -971,7 +967,7 @@ def close_contract(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.process_return")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     contract = _load_contract(db, company.id, contract_id)
@@ -1035,7 +1031,7 @@ def record_deposit(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.manage_deposits")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     contract = _load_contract(db, company.id, contract_id)
 
@@ -1083,9 +1079,9 @@ def record_deposit(
 def list_deposits(
     contract_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("rental.view")),
+    user: User = Depends(require_permission("rental.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     contract = _load_contract(db, company.id, contract_id)
     return _contract_response(contract).deposits
 
@@ -1098,7 +1094,7 @@ def generate_invoice(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("rental.manage_deposits")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     contract = _load_contract(db, company.id, contract_id)

@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from marketing_config import CAMPAIGN_TEMPLATES, CAMPAIGN_TYPE_LABELS
 from marketing_schemas import (
@@ -46,11 +47,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> MarketingSettings:
@@ -89,9 +85,9 @@ def _campaign_response(c: MarketingCampaign) -> MarketingCampaignResponse:
 @router.get("/dashboard", response_model=MarketingDashboardResponse)
 def marketing_dashboard(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.view")),
+    user: User = Depends(require_permission("marketing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     today_start = _utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     sends_today = (
@@ -133,8 +129,8 @@ def marketing_dashboard(
 
 
 @router.get("/settings", response_model=MarketingSettingsResponse)
-def get_settings(db: Session = Depends(get_db), _: User = Depends(require_permission("marketing.view"))):
-    company = _get_company(db)
+def get_settings(db: Session = Depends(get_db), user: User = Depends(require_permission("marketing.view"))):
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     return MarketingSettingsResponse(
         is_enabled=settings.is_enabled,
@@ -150,7 +146,7 @@ def update_settings(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketing.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     if body.is_enabled is not None:
         settings.is_enabled = body.is_enabled
@@ -189,7 +185,7 @@ def create_from_template(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketing.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     try:
         idx = int(key.replace("tpl-", ""))
@@ -219,9 +215,9 @@ def list_campaigns(
     db: Session = Depends(get_db),
     status: str | None = None,
     limit: int = Query(50, ge=1, le=200),
-    _: User = Depends(require_permission("marketing.view")),
+    user: User = Depends(require_permission("marketing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     q = db.query(MarketingCampaign).filter(MarketingCampaign.company_id == company.id)
     if status:
         q = q.filter(MarketingCampaign.status == status)
@@ -253,7 +249,7 @@ def create_campaign(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketing.create")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     try:
         validate_campaign_type(body.campaign_type)
@@ -281,9 +277,9 @@ def create_campaign(
 def get_campaign(
     campaign_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.view")),
+    user: User = Depends(require_permission("marketing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     campaign = db.query(MarketingCampaign).filter(MarketingCampaign.id == campaign_id, MarketingCampaign.company_id == company.id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -298,7 +294,7 @@ def update_campaign(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketing.edit")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     campaign = db.query(MarketingCampaign).filter(MarketingCampaign.id == campaign_id, MarketingCampaign.company_id == company.id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -319,9 +315,9 @@ def update_campaign(
 def list_enrollments(
     campaign_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.view")),
+    user: User = Depends(require_permission("marketing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(MarketingEnrollment)
         .options(joinedload(MarketingEnrollment.lead), joinedload(MarketingEnrollment.contact))
@@ -353,7 +349,7 @@ def activate_campaign(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketing.activate")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     campaign = db.query(MarketingCampaign).filter(MarketingCampaign.id == campaign_id, MarketingCampaign.company_id == company.id).first()
@@ -373,9 +369,9 @@ def activate_campaign(
 def pause_campaign(
     campaign_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.activate")),
+    user: User = Depends(require_permission("marketing.activate")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     campaign = db.query(MarketingCampaign).filter(MarketingCampaign.id == campaign_id, MarketingCampaign.company_id == company.id).first()
     if not campaign:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -387,9 +383,9 @@ def pause_campaign(
 @router.post("/process-due")
 def process_due(
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.run")),
+    user: User = Depends(require_permission("marketing.run")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     count = process_due_enrollments(db, company.id, settings.default_owner_role)
@@ -401,9 +397,9 @@ def process_due(
 def campaign_send_logs(
     campaign_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketing.view")),
+    user: User = Depends(require_permission("marketing.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     logs = (
         db.query(MarketingSendLog)
         .join(MarketingEnrollment)

@@ -5,6 +5,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from lead_config import LEAD_SOURCES, LEAD_STATUSES, normalize_phone
@@ -24,15 +25,6 @@ from schemas import (
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
-
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(
-            status_code=400,
-            detail="Company must be configured before managing leads",
-        )
-    return company
 
 
 def _get_lead(db: Session, lead_id: int, company_id: int) -> Lead:
@@ -120,10 +112,10 @@ def _phone_tail(phone: str | None) -> str | None:
 
 @router.get("/stats/summary", response_model=LeadStatsResponse)
 def lead_stats(
-    _: User = Depends(require_permission("leads.view")),
+    user: User = Depends(require_permission("leads.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     rows = (
         db.query(Lead.status, func.count(Lead.id))
         .filter(Lead.company_id == company.id)
@@ -150,10 +142,10 @@ def list_lead_statuses(_: User = Depends(require_permission("leads.view"))):
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
 def list_lead_assignees(
-    _: User = Depends(require_permission("leads.assign")),
+    user: User = Depends(require_permission("leads.assign")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(
@@ -173,10 +165,10 @@ def list_lead_assignees(
 @router.get("/check-duplicate", response_model=LeadDuplicateCheckResponse)
 def check_lead_duplicate(
     phone: str = Query(..., min_length=8),
-    _: User = Depends(require_permission("leads.view")),
+    user: User = Depends(require_permission("leads.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     normalized = normalize_phone(phone)
     if not normalized:
         raise HTTPException(status_code=400, detail="Invalid phone number")
@@ -226,10 +218,10 @@ def list_leads(
     source: str | None = None,
     assigned_to_id: int | None = None,
     search: str | None = None,
-    _: User = Depends(require_permission("leads.view")),
+    user: User = Depends(require_permission("leads.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(Lead)
         .options(joinedload(Lead.assigned_to), joinedload(Lead.created_by))
@@ -274,10 +266,10 @@ def list_leads(
 @router.get("/{lead_id}", response_model=LeadResponse)
 def get_lead(
     lead_id: int,
-    _: User = Depends(require_permission("leads.view")),
+    user: User = Depends(require_permission("leads.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _lead_to_response(_get_lead(db, lead_id, company.id))
 
 
@@ -288,7 +280,7 @@ def create_lead(
     user: User = Depends(require_permission("leads.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     payload = data.model_dump()
     _validate_status(payload["status"])
     _validate_source(payload["source"])
@@ -342,7 +334,7 @@ def update_lead(
     user: User = Depends(require_permission("leads.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     lead = _get_lead(db, lead_id, company.id)
     payload = data.model_dump()
     _validate_status(payload["status"])
@@ -390,7 +382,7 @@ def convert_lead_to_contact(
     user: User = Depends(require_permission("leads.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     lead = _get_lead(db, lead_id, company.id)
 
     if lead.contact_id:

@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, Contact, Project, ProjectTask, TimesheetEntry, User
 from permissions import role_has_permission
@@ -45,11 +46,6 @@ def _week_start() -> datetime:
     return start.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing timesheets")
-    return company
 
 
 def _float(v) -> float:
@@ -197,7 +193,7 @@ def timesheet_stats(
     current_user: User = Depends(require_permission("timesheets.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     week_start = _week_start()
 
     my_q = db.query(TimesheetEntry).filter(
@@ -250,7 +246,7 @@ def approval_queue(
     current_user: User = Depends(require_permission("timesheets.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     query = (
         db.query(TimesheetEntry)
         .options(
@@ -285,7 +281,7 @@ def list_timesheets(
     current_user: User = Depends(require_permission("timesheets.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     query = (
         db.query(TimesheetEntry)
         .options(
@@ -329,7 +325,7 @@ def create_timesheet(
     current_user: User = Depends(require_permission("timesheets.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     _validate_hours(payload.hours)
     _validate_description(payload.description)
 
@@ -390,7 +386,7 @@ def get_timesheet(
     current_user: User = Depends(require_permission("timesheets.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     _ensure_access(db, current_user, entry)
     return _entry_resp(entry)
@@ -404,7 +400,7 @@ def update_timesheet(
     current_user: User = Depends(require_permission("timesheets.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     if entry.employee_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only edit your own timesheet entries")
@@ -461,7 +457,7 @@ def submit_timesheet(
     current_user: User = Depends(require_permission("timesheets.submit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     if entry.employee_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the employee can submit this entry")
@@ -498,7 +494,7 @@ def approve_timesheet(
     current_user: User = Depends(require_permission("timesheets.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     if entry.employee_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot approve your own timesheet entry")
@@ -531,7 +527,7 @@ def reject_timesheet(
     current_user: User = Depends(require_permission("timesheets.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     if entry.employee_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reject your own timesheet entry")
@@ -567,7 +563,7 @@ def delete_timesheet(
     current_user: User = Depends(require_permission("timesheets.delete_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     entry = _get_entry(db, entry_id, company.id)
     if entry.employee_id != current_user.id:
         raise HTTPException(status_code=403, detail="You can only delete your own timesheet entries")

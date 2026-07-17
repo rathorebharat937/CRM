@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import Company, EmployeeProfile, Payslip, User
 from payroll_config import (
@@ -38,11 +39,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _float(v) -> float:
@@ -107,7 +103,7 @@ def payroll_stats(
     current_user: User = Depends(require_permission("payroll.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     now = _utcnow()
     month, year = now.month, now.year
     base = db.query(Payslip).filter(
@@ -141,7 +137,7 @@ def list_payslips(
     current_user: User = Depends(require_permission("payroll.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     query = (
         db.query(Payslip)
         .options(joinedload(Payslip.employee))
@@ -164,7 +160,7 @@ def get_payslip(
     current_user: User = Depends(require_permission("payroll.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     payslip = (
         db.query(Payslip)
         .options(joinedload(Payslip.employee))
@@ -185,7 +181,7 @@ def generate_payslip(
     current_user: User = Depends(require_permission("payroll.generate")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     if payload.period_month < 1 or payload.period_month > 12:
         raise HTTPException(status_code=400, detail="Invalid month")
 
@@ -251,7 +247,7 @@ def mark_paid(
     current_user: User = Depends(require_permission("payroll.mark_paid")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     payslip = db.query(Payslip).filter(Payslip.id == payslip_id, Payslip.company_id == company.id).first()
     if not payslip:
         raise HTTPException(status_code=404, detail="Payslip not found")

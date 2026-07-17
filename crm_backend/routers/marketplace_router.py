@@ -20,6 +20,7 @@ from marketplace_schemas import (
     MarketplaceWebhookCreateRequest,
     MarketplaceWebhookResponse,
 )
+from tenant_utils import get_current_company
 from auth_utils import get_db, require_permission
 from models import Company, MarketplaceApiKey, MarketplaceIntegration, MarketplaceSettings, MarketplaceWebhook, User
 from services.marketplace_service import (
@@ -33,11 +34,6 @@ from services.marketplace_service import (
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _get_settings(db: Session, company: Company) -> MarketplaceSettings:
@@ -55,8 +51,8 @@ def _require_enabled(settings: MarketplaceSettings) -> None:
 
 
 @router.get("/dashboard", response_model=MarketplaceDashboardResponse)
-def dashboard(db: Session = Depends(get_db), _: User = Depends(require_permission("marketplace.view"))):
-    company = _get_company(db)
+def dashboard(db: Session = Depends(get_db), user: User = Depends(require_permission("marketplace.view"))):
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     ensure_catalog_rows(db, company.id)
     db.commit()
@@ -87,8 +83,8 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(require_permissio
 
 
 @router.get("/settings", response_model=MarketplaceSettingsResponse)
-def get_settings(db: Session = Depends(get_db), _: User = Depends(require_permission("marketplace.view"))):
-    company = _get_company(db)
+def get_settings(db: Session = Depends(get_db), user: User = Depends(require_permission("marketplace.view"))):
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     return MarketplaceSettingsResponse(
         is_enabled=settings.is_enabled,
@@ -101,9 +97,9 @@ def get_settings(db: Session = Depends(get_db), _: User = Depends(require_permis
 def update_settings(
     body: MarketplaceSettingsUpdateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.manage_settings")),
+    user: User = Depends(require_permission("marketplace.manage_settings")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     if body.is_enabled is not None:
         settings.is_enabled = body.is_enabled
@@ -120,8 +116,8 @@ def update_settings(
 
 
 @router.get("/catalog", response_model=list[IntegrationCatalogItem])
-def catalog(db: Session = Depends(get_db), _: User = Depends(require_permission("marketplace.view"))):
-    company = _get_company(db)
+def catalog(db: Session = Depends(get_db), user: User = Depends(require_permission("marketplace.view"))):
+    company = get_current_company(db, user)
     ensure_catalog_rows(db, company.id)
     db.commit()
     rows = {r.integration_key: r for r in db.query(MarketplaceIntegration).filter(MarketplaceIntegration.company_id == company.id).all()}
@@ -147,9 +143,9 @@ def catalog(db: Session = Depends(get_db), _: User = Depends(require_permission(
 def get_integration(
     integration_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.view")),
+    user: User = Depends(require_permission("marketplace.view")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     row = db.query(MarketplaceIntegration).filter(MarketplaceIntegration.id == integration_id, MarketplaceIntegration.company_id == company.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Integration not found")
@@ -169,9 +165,9 @@ def install(
     integration_id: int,
     body: MarketplaceInstallRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.install")),
+    user: User = Depends(require_permission("marketplace.install")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     row = db.query(MarketplaceIntegration).filter(MarketplaceIntegration.id == integration_id, MarketplaceIntegration.company_id == company.id).first()
     if not row:
@@ -194,9 +190,9 @@ def install(
 def uninstall(
     integration_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.install")),
+    user: User = Depends(require_permission("marketplace.install")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     row = db.query(MarketplaceIntegration).filter(MarketplaceIntegration.id == integration_id, MarketplaceIntegration.company_id == company.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Integration not found")
@@ -215,8 +211,8 @@ def uninstall(
 
 
 @router.get("/api-keys", response_model=list[MarketplaceApiKeyListItem])
-def list_api_keys(db: Session = Depends(get_db), _: User = Depends(require_permission("marketplace.manage_keys"))):
-    company = _get_company(db)
+def list_api_keys(db: Session = Depends(get_db), user: User = Depends(require_permission("marketplace.manage_keys"))):
+    company = get_current_company(db, user)
     rows = db.query(MarketplaceApiKey).filter(MarketplaceApiKey.company_id == company.id).order_by(MarketplaceApiKey.created_at.desc()).all()
     return [
         MarketplaceApiKeyListItem(
@@ -238,7 +234,7 @@ def create_api_key(
     db: Session = Depends(get_db),
     user: User = Depends(require_permission("marketplace.manage_keys")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_settings(db, company)
     _require_enabled(settings)
     active = db.query(func.count(MarketplaceApiKey.id)).filter(MarketplaceApiKey.company_id == company.id, MarketplaceApiKey.is_active.is_(True)).scalar() or 0
@@ -270,9 +266,9 @@ def create_api_key(
 def revoke_api_key(
     key_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.manage_keys")),
+    user: User = Depends(require_permission("marketplace.manage_keys")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     row = db.query(MarketplaceApiKey).filter(MarketplaceApiKey.id == key_id, MarketplaceApiKey.company_id == company.id).first()
     if not row:
         raise HTTPException(status_code=404, detail="API key not found")
@@ -282,8 +278,8 @@ def revoke_api_key(
 
 
 @router.get("/webhooks", response_model=list[MarketplaceWebhookResponse])
-def list_webhooks(db: Session = Depends(get_db), _: User = Depends(require_permission("marketplace.manage_webhooks"))):
-    company = _get_company(db)
+def list_webhooks(db: Session = Depends(get_db), user: User = Depends(require_permission("marketplace.manage_webhooks"))):
+    company = get_current_company(db, user)
     rows = db.query(MarketplaceWebhook).filter(MarketplaceWebhook.company_id == company.id).order_by(MarketplaceWebhook.created_at.desc()).all()
     return [
         MarketplaceWebhookResponse(
@@ -305,9 +301,9 @@ def list_webhooks(db: Session = Depends(get_db), _: User = Depends(require_permi
 def create_webhook(
     body: MarketplaceWebhookCreateRequest,
     db: Session = Depends(get_db),
-    _: User = Depends(require_permission("marketplace.manage_webhooks")),
+    user: User = Depends(require_permission("marketplace.manage_webhooks")),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     _require_enabled(_get_settings(db, company))
     invalid = [e for e in body.events_json if e not in WEBHOOK_EVENT_TYPES]
     if invalid:

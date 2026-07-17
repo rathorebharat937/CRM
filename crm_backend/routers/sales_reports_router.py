@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
+from tenant_utils import get_current_company
 from auth_utils import get_db, require_permission
 from config import STAFF_ROLES
 from deal_config import DEAL_STAGE_LABELS, PIPELINE_STAGES
@@ -33,11 +34,6 @@ from schemas import (
 router = APIRouter(prefix="/sales-reports", tags=["sales-reports"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before viewing reports")
-    return company
 
 
 def _float(v) -> float:
@@ -169,7 +165,7 @@ def overview(
     user: User = Depends(require_permission("reports.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     start, end, prev_start, prev_end, period_label = _period_bounds(period, date_from, date_to)
 
@@ -307,7 +303,7 @@ def conversion_report(
     user: User = Depends(require_permission("reports.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     start, end, prev_start, prev_end, period_label = _period_bounds(period, None, None)
 
@@ -447,7 +443,7 @@ def revenue_report(
     user: User = Depends(require_permission("reports.view_financial")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     start, end, prev_start, prev_end, period_label = _period_bounds(period, None, None)
 
@@ -568,7 +564,7 @@ def lead_source_report(
     user: User = Depends(require_permission("reports.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     start, end, _, _, period_label = _period_bounds(period, None, None)
 
@@ -618,7 +614,7 @@ def executive_report(
     user: User = Depends(require_permission("reports.view_team")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     start, end, _, _, period_label = _period_bounds(period, None, None)
 
     staff = db.query(User).filter(User.role.in_(STAFF_ROLES), User.status == "active").all()
@@ -673,7 +669,7 @@ def pending_deals_report(
     user: User = Depends(require_permission("reports.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     _, _, _, _, period_label = _period_bounds("month", None, None)
 
@@ -719,7 +715,7 @@ def pipeline_health_report(
     user: User = Depends(require_permission("reports.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     owner_id = _resolve_owner_filter(user, db, owner_id)
     _, _, _, _, period_label = _period_bounds("month", None, None)
     now = datetime.now(timezone.utc)

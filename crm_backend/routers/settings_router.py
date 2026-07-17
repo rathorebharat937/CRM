@@ -8,6 +8,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import ALLOWED_EXTENSIONS, UPLOAD_DIR
 from models import Company, SystemSetting, User
@@ -18,11 +19,6 @@ router = APIRouter(prefix="/admin", tags=["settings"])
 BRANDING_DIR = os.path.join(UPLOAD_DIR, "branding")
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company not configured")
-    return company
 
 
 def _get_or_create_settings(db: Session, company: Company) -> SystemSetting:
@@ -37,10 +33,10 @@ def _get_or_create_settings(db: Session, company: Company) -> SystemSetting:
 
 @router.get("/settings", response_model=SystemSettingResponse)
 def get_system_settings(
-    _: User = Depends(require_permission("settings.view")),
+    user: User = Depends(require_permission("settings.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     return _get_or_create_settings(db, company)
 
 
@@ -51,7 +47,7 @@ def update_system_settings(
     user: User = Depends(require_permission("settings.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_or_create_settings(db, company)
     settings.quote_prefix = data.quote_prefix.strip()
     settings.invoice_prefix = data.invoice_prefix.strip()
@@ -78,7 +74,7 @@ async def upload_company_logo(
     user: User = Depends(require_permission("settings.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_or_create_settings(db, company)
 
     if not file.filename:
@@ -120,10 +116,10 @@ async def upload_company_logo(
 
 @router.get("/settings/logo")
 def get_company_logo(
-    _: User = Depends(require_permission("settings.view")),
+    user: User = Depends(require_permission("settings.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     settings = _get_or_create_settings(db, company)
     if not settings.logo_filename:
         raise HTTPException(status_code=404, detail="No logo uploaded")

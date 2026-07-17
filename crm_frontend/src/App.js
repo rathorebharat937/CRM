@@ -14,6 +14,8 @@ import SalesDashboard from "./pages/SalesDashboard";
 import AccountantDashboard from "./pages/AccountantDashboard";
 import UserLogin from "./pages/UserLogin";
 import UserSignup from "./pages/UserSignup";
+import RegisterCompany from "./pages/RegisterCompany";
+import OnboardingWizard from "./pages/OnboardingWizard";
 import UserDashboard from "./pages/UserDashboard";
 import Profile from "./pages/Profile";
 import AdminUsers from "./pages/AdminUsers";
@@ -233,6 +235,8 @@ function App() {
         <Route path="/sales-login" element={<SalesLogin />} />
         <Route path="/accountant-login" element={<AccountantLogin />} />
         <Route path="/user-login" element={<UserLogin />} />
+        <Route path="/register-company" element={<RegisterCompany />} />
+        <Route path="/onboarding" element={<OnboardingWizard />} />
         <Route path="/user-signup" element={<UserSignup />} />
         <Route path="/quote/:token" element={<ClientQuoteView />} />
         <Route path="/order/:token" element={<ClientOrderView />} />

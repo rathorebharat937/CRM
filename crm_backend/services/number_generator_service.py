@@ -9,23 +9,11 @@ class NumberGeneratorService:
     """Service for generating and managing sequential numbers for CRM entities."""
 
     @staticmethod
-    def generate(db: Session, entity_name: str) -> str:
-        """
-        Generate the next number for a given entity.
-
-        Args:
-            db: Database session
-            entity_name: Name of the entity (e.g., "CONTACT", "INVOICE")
-
-        Returns:
-            Formatted number string (e.g., "CNT-0298", "INV-1001")
-
-        Raises:
-            ValueError: If entity configuration not found or inactive
-        """
+    def generate(db: Session, entity_name: str, company_id: int) -> str:
         config = (
             db.query(NumberingConfiguration)
             .filter(
+                NumberingConfiguration.company_id == company_id,
                 NumberingConfiguration.entity_name == entity_name,
                 NumberingConfiguration.is_active == True,
             )
@@ -38,14 +26,10 @@ class NumberGeneratorService:
                 f"No active numbering configuration found for entity: {entity_name}"
             )
 
-        # Increment current number
         config.current_number += 1
         db.commit()
 
-        # Format the number with zero padding (4 digits)
         number_str = str(config.current_number).zfill(4)
-
-        # Build the formatted number: PREFIX-0000[-SUFFIX]
         parts = [config.prefix, number_str]
         if config.suffix:
             parts.append(config.suffix)
@@ -53,20 +37,11 @@ class NumberGeneratorService:
         return "-".join(parts)
 
     @staticmethod
-    def get_next_number(db: Session, entity_name: str) -> str:
-        """
-        Preview the next number without incrementing.
-
-        Args:
-            db: Database session
-            entity_name: Name of the entity
-
-        Returns:
-            Formatted number string preview
-        """
+    def get_next_number(db: Session, entity_name: str, company_id: int) -> str:
         config = (
             db.query(NumberingConfiguration)
             .filter(
+                NumberingConfiguration.company_id == company_id,
                 NumberingConfiguration.entity_name == entity_name,
                 NumberingConfiguration.is_active == True,
             )
@@ -88,18 +63,13 @@ class NumberGeneratorService:
         return "-".join(parts)
 
     @staticmethod
-    def reset_counter(db: Session, entity_name: str, new_value: int) -> None:
-        """
-        Reset the current number counter for an entity.
-
-        Args:
-            db: Database session
-            entity_name: Name of the entity
-            new_value: New counter value
-        """
+    def reset_counter(db: Session, entity_name: str, company_id: int, new_value: int) -> None:
         config = (
             db.query(NumberingConfiguration)
-            .filter(NumberingConfiguration.entity_name == entity_name)
+            .filter(
+                NumberingConfiguration.company_id == company_id,
+                NumberingConfiguration.entity_name == entity_name,
+            )
             .first()
         )
 

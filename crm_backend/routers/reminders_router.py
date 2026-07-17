@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from config import STAFF_ROLES
 from models import ClientNote, Company, Contact, Deal, FollowUpReminder, Lead, User
@@ -29,11 +30,6 @@ from schemas import (
 router = APIRouter(prefix="/reminders", tags=["reminders"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _validate_type(reminder_type: str) -> None:
@@ -153,10 +149,10 @@ def list_reminder_types(_: User = Depends(require_permission("reminders.view")))
 @router.get("/stats/summary", response_model=FollowUpReminderStatsResponse)
 def reminder_stats(
     assigned_to_id: int | None = None,
-    _: User = Depends(require_permission("reminders.view")),
+    user: User = Depends(require_permission("reminders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     start_of_day, end_of_day = _day_bounds(now)
 
@@ -204,10 +200,10 @@ def unified_queue(
     filter: str = Query("all", pattern="^(all|due_today|overdue|upcoming)$"),
     assigned_to_id: int | None = None,
     limit: int = Query(50, ge=1, le=100),
-    _: User = Depends(require_permission("reminders.view")),
+    user: User = Depends(require_permission("reminders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     start_of_day, end_of_day = _day_bounds(now)
 
@@ -327,10 +323,10 @@ def list_reminders(
     deal_id: int | None = None,
     contact_id: int | None = None,
     assigned_to_id: int | None = None,
-    _: User = Depends(require_permission("reminders.view")),
+    user: User = Depends(require_permission("reminders.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(FollowUpReminder)
         .options(
@@ -376,7 +372,7 @@ def create_reminder(
     user: User = Depends(require_permission("reminders.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     payload = data.model_dump()
     _validate_type(payload["reminder_type"])
     _validate_priority(payload["priority"])
@@ -426,7 +422,7 @@ def complete_reminder(
     user: User = Depends(require_permission("reminders.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     reminder = _get_reminder(db, reminder_id, company.id)
     if reminder.status != "pending":
         raise HTTPException(status_code=400, detail="Reminder is not pending")
@@ -454,7 +450,7 @@ def update_reminder(
     user: User = Depends(require_permission("reminders.edit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     reminder = _get_reminder(db, reminder_id, company.id)
     payload = data.model_dump()
     _validate_type(payload["reminder_type"])

@@ -7,6 +7,7 @@ from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from leave_config import (
     ALLOWED_TRANSITIONS,
@@ -47,11 +48,6 @@ def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing leave")
-    return company
 
 
 def _validate_leave_type(leave_type: str) -> None:
@@ -252,10 +248,10 @@ def leave_meta(_: User = Depends(require_permission("leaves.view"))):
 
 @router.get("/assignees", response_model=list[StaffAssigneeResponse])
 def leave_assignees(
-    _: User = Depends(require_permission("leaves.view_all")),
+    user: User = Depends(require_permission("leaves.view_all")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     staff = (
         db.query(User)
         .filter(
@@ -277,7 +273,7 @@ def leave_stats(
     current_user: User = Depends(require_permission("leaves.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     base = db.query(LeaveRequest).filter(LeaveRequest.company_id == company.id)
     if not _can_view_all(current_user, db):
         base = base.filter(LeaveRequest.employee_id == current_user.id)
@@ -325,7 +321,7 @@ def approval_queue(
     current_user: User = Depends(require_permission("leaves.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     q = (
         db.query(LeaveRequest)
         .options(joinedload(LeaveRequest.employee), joinedload(LeaveRequest.reviewed_by))
@@ -371,7 +367,7 @@ def team_leave(
     if not _can_view_all(current_user, db):
         raise HTTPException(status_code=403, detail="Team leave view requires view_all permission")
 
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     now = _utcnow()
     start = _date_only(date_from) if date_from else _date_only(now.replace(day=1))
     end = _date_only(date_to) if date_to else _date_only(now + timedelta(days=30))
@@ -409,7 +405,7 @@ def list_leaves(
     current_user: User = Depends(require_permission("leaves.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     q = (
         db.query(LeaveRequest)
         .options(joinedload(LeaveRequest.employee), joinedload(LeaveRequest.reviewed_by))
@@ -459,7 +455,7 @@ def create_leave(
     current_user: User = Depends(require_permission("leaves.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     _validate_leave_type(payload.leave_type)
     _validate_reason(payload.reason)
     _validate_half_day_period(payload.half_day_period)
@@ -516,7 +512,7 @@ def get_leave(
     current_user: User = Depends(require_permission("leaves.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     _ensure_access(db, current_user, leave)
     return _leave_resp(db, leave)
@@ -530,7 +526,7 @@ def update_leave(
     current_user: User = Depends(require_permission("leaves.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     _ensure_access(db, current_user, leave)
 
@@ -574,7 +570,7 @@ def submit_leave(
     current_user: User = Depends(require_permission("leaves.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     if leave.employee_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only the employee can submit this leave request")
@@ -619,7 +615,7 @@ def approve_leave(
     current_user: User = Depends(require_permission("leaves.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     if leave.employee_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot approve your own leave request")
@@ -652,7 +648,7 @@ def reject_leave(
     current_user: User = Depends(require_permission("leaves.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     if leave.employee_id == current_user.id:
         raise HTTPException(status_code=400, detail="You cannot reject your own leave request")
@@ -689,7 +685,7 @@ def cancel_leave(
     current_user: User = Depends(require_permission("leaves.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, current_user)
     leave = _get_leave(db, leave_id, company.id)
     _ensure_access(db, current_user, leave)
 

@@ -11,6 +11,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session, joinedload
 
 from activity import log_activity
+from tenant_utils import get_current_company
 from auth_utils import get_client_ip, get_db, require_permission
 from models import (
     Company,
@@ -70,11 +71,6 @@ ALLOWED_CONTENT_TYPES = {
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured before managing vendor bills")
-    return company
 
 
 def _decimal(v) -> Decimal:
@@ -442,8 +438,8 @@ def payment_methods(_: User = Depends(require_permission("vendor_bills.view"))):
 
 
 @router.get("/stats/summary", response_model=VendorBillStatsResponse)
-def stats(_: User = Depends(require_permission("vendor_bills.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def stats(user: User = Depends(require_permission("vendor_bills.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     week_end = now + timedelta(days=7)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -513,10 +509,10 @@ def stats(_: User = Depends(require_permission("vendor_bills.view")), db: Sessio
 def approval_queue(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("vendor_bills.approve")),
+    user: User = Depends(require_permission("vendor_bills.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(VendorBill)
         .options(
@@ -546,7 +542,7 @@ def list_bills(
     user: User = Depends(require_permission("vendor_bills.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(VendorBill)
         .options(
@@ -597,7 +593,7 @@ def create_from_po(
     user: User = Depends(require_permission("vendor_bills.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     po = _get_po(db, po_id, company.id)
     if po.status not in BILLING_STATUSES:
         raise HTTPException(status_code=400, detail="PO must be received before creating a vendor bill")
@@ -650,7 +646,7 @@ def create_bill(
     user: User = Depends(require_permission("vendor_bills.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _build_bill(db, company, payload, user)
     db.commit()
     bill = _get_bill(db, bill.id, company.id)
@@ -659,8 +655,8 @@ def create_bill(
 
 
 @router.get("/{bill_id}", response_model=VendorBillResponse)
-def get_bill(bill_id: int, _: User = Depends(require_permission("vendor_bills.view")), db: Session = Depends(get_db)):
-    company = _get_company(db)
+def get_bill(bill_id: int, user: User = Depends(require_permission("vendor_bills.view")), db: Session = Depends(get_db)):
+    company = get_current_company(db, user)
     return _bill_resp(_get_bill(db, bill_id, company.id))
 
 
@@ -672,7 +668,7 @@ def update_bill(
     user: User = Depends(require_permission("vendor_bills.edit_own")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if not _can_edit(bill, user, db):
         raise HTTPException(status_code=403, detail="Not allowed to edit this bill")
@@ -718,7 +714,7 @@ def delete_bill(
     user: User = Depends(require_permission("vendor_bills.delete")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status != "draft":
         raise HTTPException(status_code=400, detail="Only draft bills can be deleted")
@@ -736,7 +732,7 @@ def submit_bill(
     user: User = Depends(require_permission("vendor_bills.submit")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.created_by_id != user.id and not role_has_permission(db, user.role, "vendor_bills.edit_all"):
         raise HTTPException(status_code=403, detail="Only the creator can submit this bill")
@@ -768,7 +764,7 @@ def approve_bill(
     user: User = Depends(require_permission("vendor_bills.approve")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="Bill is not pending approval")
@@ -798,7 +794,7 @@ def reject_bill(
     user: User = Depends(require_permission("vendor_bills.reject")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status not in {"submitted", "under_review"}:
         raise HTTPException(status_code=400, detail="Bill is not pending approval")
@@ -821,7 +817,7 @@ def record_payment(
     user: User = Depends(require_permission("vendor_bills.record_payment")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status not in PAYABLE_STATUSES | {"partially_paid", "overdue"}:
         raise HTTPException(status_code=400, detail="Cannot record payment on this bill")
@@ -854,7 +850,7 @@ def close_bill(
     user: User = Depends(require_permission("vendor_bills.record_payment")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status != "paid":
         raise HTTPException(status_code=400, detail="Only paid bills can be closed")
@@ -874,7 +870,7 @@ def cancel_bill(
     user: User = Depends(require_permission("vendor_bills.cancel")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status in {"paid", "closed", "cancelled"}:
         raise HTTPException(status_code=400, detail="Bill cannot be cancelled")
@@ -900,7 +896,7 @@ async def upload_attachment(
     user: User = Depends(require_permission("vendor_bills.create")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     if bill.status not in EDITABLE_STATUSES:
         raise HTTPException(status_code=400, detail="Cannot add attachment to a non-editable bill")
@@ -945,10 +941,10 @@ async def upload_attachment(
 def download_attachment(
     bill_id: int,
     attachment_id: int,
-    _: User = Depends(require_permission("vendor_bills.view")),
+    user: User = Depends(require_permission("vendor_bills.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     bill = _get_bill(db, bill_id, company.id)
     attachment = next((a for a in bill.attachments if a.id == attachment_id), None)
     if not attachment:

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
+from tenant_utils import get_current_company
 from auth_utils import get_db, require_permission
 from models import Company, Invoice, InvoicePayment, User
 from schemas import (
@@ -20,11 +21,6 @@ from schemas import (
 router = APIRouter(prefix="/payments", tags=["payments"])
 
 
-def _get_company(db: Session) -> Company:
-    company = db.query(Company).first()
-    if not company:
-        raise HTTPException(status_code=400, detail="Company must be configured")
-    return company
 
 
 def _float(value) -> float:
@@ -33,10 +29,10 @@ def _float(value) -> float:
 
 @router.get("/summary", response_model=PaymentSummaryResponse)
 def payment_summary(
-    _: User = Depends(require_permission("payments.view")),
+    user: User = Depends(require_permission("payments.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
 
     now = datetime.now(timezone.utc)
     outstanding_statuses = ["issued", "sent", "viewed", "partially_paid", "overdue"]
@@ -104,10 +100,10 @@ def payment_summary(
 def list_payments(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
-    _: User = Depends(require_permission("payments.view")),
+    user: User = Depends(require_permission("payments.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     query = (
         db.query(InvoicePayment)
         .join(Invoice, InvoicePayment.invoice_id == Invoice.id)
@@ -152,10 +148,10 @@ def list_outstanding(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     overdue_only: bool = False,
-    _: User = Depends(require_permission("payments.view")),
+    user: User = Depends(require_permission("payments.view")),
     db: Session = Depends(get_db),
 ):
-    company = _get_company(db)
+    company = get_current_company(db, user)
     now = datetime.now(timezone.utc)
     outstanding_statuses = ["issued", "sent", "viewed", "partially_paid", "overdue"]
 

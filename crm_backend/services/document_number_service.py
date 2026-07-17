@@ -27,13 +27,13 @@ def _legacy_invoice_number(db: Session, company: Company) -> str:
 
 def generate_quote_number(db: Session, company: Company) -> str:
     try:
-        return NumberGeneratorService.generate(db, "QUOTATION")
+        return NumberGeneratorService.generate(db, "QUOTATION", company.id)
     except ValueError:
         return _legacy_quote_number(db, company)
 
 
 def generate_invoice_number(db: Session, company: Company) -> str:
     try:
-        return NumberGeneratorService.generate(db, "INVOICE")
+        return NumberGeneratorService.generate(db, "INVOICE", company.id)
     except ValueError:
         return _legacy_invoice_number(db, company)

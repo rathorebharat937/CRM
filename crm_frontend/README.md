@@ -46,9 +46,9 @@ Return to all modules anytime: click **BlackPapers** logo or **Apps** in the bre
 
 - India-first copy (SMEs, NGOs, consultants, service businesses)
 - Module showcase grid (marketing — not logged-in)
-- **Get started** → workspace sign-in section
-- **Create portal account** → `/user-signup` (limited User role only; **not** full business CRM)
-- Staff use role portals: Admin, Sales, Accountant, Employee, Manager
+- **Start free** → `/register-company` (new business workspace)
+- **Staff login** → role portals (Admin, Sales, Accountant, etc.)
+- Client portal signup is disabled; portal users are invited by admin
 
 ---
 
@@ -188,10 +188,10 @@ Serve `build/` with a static host. Update `API_URL` in `src/utils/api.js` for pr
 
 ## Not built yet (frontend)
 
-- **Level 5 Phase 2** — Live email/WhatsApp from marketing; LLM-backed AI Assistant; live Razorpay/Tally sync (see [../docs/LEVEL_5_STATUS.md](../docs/LEVEL_5_STATUS.md))
-- WhatsApp / email **send** from CRM (templates UI exists; needs SMTP/WhatsApp API)
+- Live email/WhatsApp send from CRM (templates UI exists; needs SMTP/WhatsApp API)
+- LLM-backed AI Assistant (rule-based chat ships today)
+- Live Razorpay/Tally sync in marketplace
 - Push / SMS delivery (in-app alerts work)
-- Multi-tenant **Register your business** flow (roadmap — [../docs/MULTI_TENANT_ROADMAP.md](../docs/MULTI_TENANT_ROADMAP.md))
 
 ---
 
